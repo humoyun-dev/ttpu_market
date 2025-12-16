@@ -1,0 +1,158 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { CategoriesService } from './categories.service';
+import { ProductsService } from './products.service';
+import {
+  CreateCategoryDto,
+  UpdateCategoryDto,
+  CreateProductDto,
+  UpdateProductDto,
+} from './dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators';
+import { StoresService } from '../stores/stores.service';
+
+@ApiTags('Catalog')
+@Controller('stores/:storeId')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
+export class CatalogController {
+  constructor(
+    private readonly categoriesService: CategoriesService,
+    private readonly productsService: ProductsService,
+    private readonly storesService: StoresService,
+  ) {}
+
+  // Categories
+  @Post('categories')
+  @ApiOperation({ summary: 'Create a category' })
+  @ApiResponse({ status: 201, description: 'Category created' })
+  async createCategory(
+    @CurrentUser() user: any,
+    @Param('storeId') storeId: string,
+    @Body() dto: CreateCategoryDto,
+  ) {
+    await this.storesService.verifyOwnership(BigInt(storeId), BigInt(user.id));
+    return this.categoriesService.create(BigInt(storeId), dto);
+  }
+
+  @Get('categories')
+  @ApiOperation({ summary: 'Get all categories' })
+  @ApiResponse({ status: 200, description: 'List of categories' })
+  async getCategories(@CurrentUser() user: any, @Param('storeId') storeId: string) {
+    await this.storesService.verifyOwnership(BigInt(storeId), BigInt(user.id));
+    return this.categoriesService.findAll(BigInt(storeId));
+  }
+
+  @Get('categories/:id')
+  @ApiOperation({ summary: 'Get a category by ID' })
+  @ApiResponse({ status: 200, description: 'Category details' })
+  async getCategory(
+    @CurrentUser() user: any,
+    @Param('storeId') storeId: string,
+    @Param('id') id: string,
+  ) {
+    await this.storesService.verifyOwnership(BigInt(storeId), BigInt(user.id));
+    return this.categoriesService.findOne(BigInt(storeId), BigInt(id));
+  }
+
+  @Patch('categories/:id')
+  @ApiOperation({ summary: 'Update a category' })
+  @ApiResponse({ status: 200, description: 'Category updated' })
+  async updateCategory(
+    @CurrentUser() user: any,
+    @Param('storeId') storeId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateCategoryDto,
+  ) {
+    await this.storesService.verifyOwnership(BigInt(storeId), BigInt(user.id));
+    return this.categoriesService.update(BigInt(storeId), BigInt(id), dto);
+  }
+
+  @Delete('categories/:id')
+  @ApiOperation({ summary: 'Delete a category' })
+  @ApiResponse({ status: 200, description: 'Category deleted' })
+  async deleteCategory(
+    @CurrentUser() user: any,
+    @Param('storeId') storeId: string,
+    @Param('id') id: string,
+  ) {
+    await this.storesService.verifyOwnership(BigInt(storeId), BigInt(user.id));
+    return this.categoriesService.delete(BigInt(storeId), BigInt(id));
+  }
+
+  // Products
+  @Post('products')
+  @ApiOperation({ summary: 'Create a product' })
+  @ApiResponse({ status: 201, description: 'Product created' })
+  async createProduct(
+    @CurrentUser() user: any,
+    @Param('storeId') storeId: string,
+    @Body() dto: CreateProductDto,
+  ) {
+    await this.storesService.verifyOwnership(BigInt(storeId), BigInt(user.id));
+    return this.productsService.create(BigInt(storeId), dto);
+  }
+
+  @Get('products')
+  @ApiOperation({ summary: 'Get all products' })
+  @ApiQuery({ name: 'categoryId', required: false })
+  @ApiQuery({ name: 'isActive', required: false, type: Boolean })
+  @ApiResponse({ status: 200, description: 'List of products' })
+  async getProducts(
+    @CurrentUser() user: any,
+    @Param('storeId') storeId: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('isActive') isActive?: boolean,
+  ) {
+    await this.storesService.verifyOwnership(BigInt(storeId), BigInt(user.id));
+    return this.productsService.findAll(BigInt(storeId), { categoryId, isActive });
+  }
+
+  @Get('products/:id')
+  @ApiOperation({ summary: 'Get a product by ID' })
+  @ApiResponse({ status: 200, description: 'Product details' })
+  async getProduct(
+    @CurrentUser() user: any,
+    @Param('storeId') storeId: string,
+    @Param('id') id: string,
+  ) {
+    await this.storesService.verifyOwnership(BigInt(storeId), BigInt(user.id));
+    return this.productsService.findOne(BigInt(storeId), BigInt(id));
+  }
+
+  @Patch('products/:id')
+  @ApiOperation({ summary: 'Update a product' })
+  @ApiResponse({ status: 200, description: 'Product updated' })
+  async updateProduct(
+    @CurrentUser() user: any,
+    @Param('storeId') storeId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateProductDto,
+  ) {
+    await this.storesService.verifyOwnership(BigInt(storeId), BigInt(user.id));
+    return this.productsService.update(BigInt(storeId), BigInt(id), dto);
+  }
+
+  @Delete('products/:id')
+  @ApiOperation({ summary: 'Delete a product' })
+  @ApiResponse({ status: 200, description: 'Product deleted' })
+  async deleteProduct(
+    @CurrentUser() user: any,
+    @Param('storeId') storeId: string,
+    @Param('id') id: string,
+  ) {
+    await this.storesService.verifyOwnership(BigInt(storeId), BigInt(user.id));
+    return this.productsService.delete(BigInt(storeId), BigInt(id));
+  }
+}

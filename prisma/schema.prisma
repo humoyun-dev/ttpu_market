@@ -1,0 +1,699 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum UserRole {
+  ADMIN
+  MERCHANT
+}
+
+enum StoreStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING_PAYMENT
+  PAID
+  PROCESSING
+  READY
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+  // Legacy statuses for backwards compatibility
+  PENDING
+  CONFIRMED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum PaymentProvider {
+  PAYME
+  CLICK
+  CASH
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELLED
+}
+
+enum CampaignRecipientStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum AutomationTrigger {
+  ORDER_CREATED
+  ORDER_DELIVERED
+  CART_ABANDONED
+  CUSTOMER_BIRTHDAY
+}
+
+enum AutomationStatus {
+  ACTIVE
+  PAUSED
+  DELETED
+}
+
+// ==================== MODELS ====================
+
+model User {
+  id        BigInt    @id @default(autoincrement())
+  email     String    @unique
+  password  String
+  fullName  String
+  role      UserRole  @default(MERCHANT)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  stores     Store[]
+  storeStaff StoreStaff[]
+  auditLogs  AuditLog[]
+
+  @@map("users")
+}
+
+model Store {
+  id                 BigInt      @id @default(autoincrement())
+  ownerId            BigInt
+  name               String
+  slug               String      @unique
+  description        String?
+  logoUrl            String?
+  supportedLanguages String[]    @default(["uz", "ru"])
+  defaultLanguage    String      @default("uz")
+  currency           String      @default("UZS")
+  timezone           String      @default("Asia/Tashkent")
+  status             StoreStatus @default(ACTIVE)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  owner              User                 @relation(fields: [ownerId], references: [id])
+  telegramBot        TelegramBot?
+  staff              StoreStaff[]
+  categories         Category[]
+  products           Product[]
+  carts              Cart[]
+  orders             Order[]
+  paymentSettings    PaymentSetting[]
+  storeLocations     StoreLocation[]
+  deliveryZones      DeliveryZone[]
+  coupons            Coupon[]
+  customerTags       CustomerTag[]
+  segments           Segment[]
+  campaigns          Campaign[]
+  automations        Automation[]
+  events             Event[]
+  analyticsDaily     AnalyticsDaily[]
+  auditLogs          AuditLog[]
+  telegramCustomers  TelegramCustomer[]
+  telegramSessions   TelegramSession[]
+
+  @@map("stores")
+}
+
+model StoreStaff {
+  id        BigInt   @id @default(autoincrement())
+  storeId   BigInt
+  userId    BigInt
+  role      String   @default("staff")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, userId])
+  @@map("store_staff")
+}
+
+model TelegramBot {
+  id              BigInt   @id @default(autoincrement())
+  storeId         BigInt   @unique
+  botId           BigInt
+  username        String
+  encryptedToken  String
+  webhookSecret   String
+  webhookUrl      String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@map("telegram_bots")
+}
+
+model TelegramCustomer {
+  id             BigInt    @id @default(autoincrement())
+  storeId        BigInt
+  telegramUserId BigInt
+  username       String?
+  firstName      String?
+  lastName       String?
+  phone          String?
+  languageCode   String    @default("uz")
+  marketingOptIn Boolean   @default(true)
+  isBlocked      Boolean   @default(false)
+  lastActiveAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  store              Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sessions           TelegramSession[]
+  carts              Cart[]
+  orders             Order[]
+  couponRedemptions  CouponRedemption[]
+  customerTagLinks   CustomerTagLink[]
+  campaignRecipients CampaignRecipient[]
+  automationLogs     AutomationLog[]
+  events             Event[]
+
+  @@unique([storeId, telegramUserId])
+  @@map("telegram_customers")
+}
+
+model TelegramSession {
+  id                 BigInt   @id @default(autoincrement())
+  storeId            BigInt
+  telegramCustomerId BigInt
+  state              String   @default("idle")
+  stateData          Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  store            Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  telegramCustomer TelegramCustomer @relation(fields: [telegramCustomerId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, telegramCustomerId])
+  @@map("telegram_sessions")
+}
+
+model Category {
+  id          BigInt   @id @default(autoincrement())
+  storeId     BigInt
+  parentId    BigInt?
+  name        String
+  nameRu      String?
+  slug        String
+  imageUrl    String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  store           Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  parent          Category?         @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children        Category[]        @relation("CategoryToCategory")
+  products        Product[]
+  couponCategories CouponCategory[]
+
+  @@unique([storeId, slug])
+  @@map("categories")
+}
+
+model Product {
+  id          BigInt   @id @default(autoincrement())
+  storeId     BigInt
+  categoryId  BigInt?
+  name        String
+  description String?
+  price       BigInt
+  stockQty    Int      @default(0)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  store        Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category     Category?            @relation(fields: [categoryId], references: [id])
+  images       ProductImage[]
+  translations ProductTranslation[]
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  couponProducts CouponProduct[]
+
+  @@map("products")
+}
+
+model ProductImage {
+  id        BigInt   @id @default(autoincrement())
+  productId BigInt
+  url       String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
+}
+
+model ProductTranslation {
+  id          BigInt  @id @default(autoincrement())
+  productId   BigInt
+  language    String
+  name        String
+  description String?
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, language])
+  @@map("product_translations")
+}
+
+model Cart {
+  id                 BigInt   @id @default(autoincrement())
+  storeId            BigInt
+  telegramCustomerId BigInt
+  couponId           BigInt?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  store            Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  telegramCustomer TelegramCustomer @relation(fields: [telegramCustomerId], references: [id], onDelete: Cascade)
+  coupon           Coupon?          @relation(fields: [couponId], references: [id])
+  items            CartItem[]
+
+  @@unique([storeId, telegramCustomerId])
+  @@map("carts")
+}
+
+model CartItem {
+  id        BigInt   @id @default(autoincrement())
+  cartId    BigInt
+  productId BigInt
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
+
+model StoreLocation {
+  id        BigInt   @id @default(autoincrement())
+  storeId   BigInt
+  name      String
+  address   String
+  latitude  Float?
+  longitude Float?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@map("store_locations")
+}
+
+model DeliveryZone {
+  id        BigInt   @id @default(autoincrement())
+  storeId   BigInt
+  name      String
+  polygon   Json?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  tiers DeliveryZoneTier[]
+
+  @@map("delivery_zones")
+}
+
+model DeliveryZoneTier {
+  id             BigInt @id @default(autoincrement())
+  deliveryZoneId BigInt
+  minOrderAmount BigInt @default(0)
+  deliveryFee    BigInt @default(0)
+
+  deliveryZone DeliveryZone @relation(fields: [deliveryZoneId], references: [id], onDelete: Cascade)
+
+  @@map("delivery_zone_tiers")
+}
+
+model Order {
+  id                 BigInt        @id @default(autoincrement())
+  storeId            BigInt
+  telegramCustomerId BigInt
+  orderNo            String
+  status             OrderStatus   @default(PENDING)
+  subtotal           BigInt
+  discount           BigInt        @default(0)
+  deliveryFee        BigInt        @default(0)
+  total              BigInt
+  currency           String        @default("UZS")
+  customerPhone      String?
+  deliveryAddress    String?
+  notes              String?
+  couponId           BigInt?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  store            Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  telegramCustomer TelegramCustomer    @relation(fields: [telegramCustomerId], references: [id])
+  coupon           Coupon?             @relation(fields: [couponId], references: [id])
+  items            OrderItem[]
+  statusHistory    OrderStatusHistory[]
+  payments         Payment[]
+
+  @@unique([storeId, orderNo])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          BigInt @id @default(autoincrement())
+  orderId     BigInt
+  productId   BigInt
+  productName String
+  price       BigInt
+  quantity    Int
+  total       BigInt
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id         BigInt      @id @default(autoincrement())
+  orderId    BigInt
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  comment    String?
+  createdAt  DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_status_history")
+}
+
+model PaymentSetting {
+  id         BigInt          @id @default(autoincrement())
+  storeId    BigInt
+  provider   PaymentProvider
+  isEnabled  Boolean         @default(false)
+  merchantId String?
+  secretKey  String?
+  config     Json?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, provider])
+  @@map("payment_settings")
+}
+
+model Payment {
+  id                    BigInt          @id @default(autoincrement())
+  orderId               BigInt
+  provider              PaymentProvider
+  providerTransactionId String?
+  amount                BigInt
+  currency              String          @default("UZS")
+  status                PaymentStatus   @default(PENDING)
+  rawPayload            Json?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  order    Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  attempts PaymentAttempt[]
+
+  @@unique([provider, providerTransactionId])
+  @@map("payments")
+}
+
+model PaymentAttempt {
+  id         BigInt   @id @default(autoincrement())
+  paymentId  BigInt
+  rawPayload Json?
+  createdAt  DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("payment_attempts")
+}
+
+model Coupon {
+  id              BigInt     @id @default(autoincrement())
+  storeId         BigInt
+  code            String
+  type            CouponType
+  value           BigInt
+  minOrderAmount  BigInt     @default(0)
+  maxDiscount     BigInt?
+  usageLimit      Int?
+  usageCount      Int        @default(0)
+  perUserLimit    Int        @default(1)
+  startsAt        DateTime?
+  expiresAt       DateTime?
+  isActive        Boolean    @default(true)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  store       Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products    CouponProduct[]
+  categories  CouponCategory[]
+  redemptions CouponRedemption[]
+  carts       Cart[]
+  orders      Order[]
+
+  @@unique([storeId, code])
+  @@map("coupons")
+}
+
+model CouponProduct {
+  id        BigInt @id @default(autoincrement())
+  couponId  BigInt
+  productId BigInt
+
+  coupon  Coupon  @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, productId])
+  @@map("coupon_products")
+}
+
+model CouponCategory {
+  id         BigInt @id @default(autoincrement())
+  couponId   BigInt
+  categoryId BigInt
+
+  coupon   Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, categoryId])
+  @@map("coupon_categories")
+}
+
+model CouponRedemption {
+  id                 BigInt   @id @default(autoincrement())
+  couponId           BigInt
+  telegramCustomerId BigInt
+  orderId            BigInt?
+  createdAt          DateTime @default(now())
+
+  coupon           Coupon           @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  telegramCustomer TelegramCustomer @relation(fields: [telegramCustomerId], references: [id], onDelete: Cascade)
+
+  @@map("coupon_redemptions")
+}
+
+model CustomerTag {
+  id        BigInt   @id @default(autoincrement())
+  storeId   BigInt
+  name      String
+  color     String   @default("#3B82F6")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  links CustomerTagLink[]
+
+  @@unique([storeId, name])
+  @@map("customer_tags")
+}
+
+model CustomerTagLink {
+  id                 BigInt   @id @default(autoincrement())
+  tagId              BigInt
+  telegramCustomerId BigInt
+  createdAt          DateTime @default(now())
+
+  tag              CustomerTag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  telegramCustomer TelegramCustomer @relation(fields: [telegramCustomerId], references: [id], onDelete: Cascade)
+
+  @@unique([tagId, telegramCustomerId])
+  @@map("customer_tag_links")
+}
+
+model Segment {
+  id        BigInt   @id @default(autoincrement())
+  storeId   BigInt
+  name      String
+  filters   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store     Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  campaigns Campaign[]
+
+  @@map("segments")
+}
+
+model Campaign {
+  id          BigInt         @id @default(autoincrement())
+  storeId     BigInt
+  segmentId   BigInt?
+  name        String
+  message     String
+  imageUrl    String?
+  status      CampaignStatus @default(DRAFT)
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  store      Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  segment    Segment?            @relation(fields: [segmentId], references: [id])
+  recipients CampaignRecipient[]
+
+  @@map("campaigns")
+}
+
+model CampaignRecipient {
+  id                 BigInt                   @id @default(autoincrement())
+  campaignId         BigInt
+  telegramCustomerId BigInt
+  status             CampaignRecipientStatus  @default(PENDING)
+  sentAt             DateTime?
+  error              String?
+  createdAt          DateTime                 @default(now())
+
+  campaign         Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  telegramCustomer TelegramCustomer @relation(fields: [telegramCustomerId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, telegramCustomerId])
+  @@map("campaign_recipients")
+}
+
+model Automation {
+  id        BigInt            @id @default(autoincrement())
+  storeId   BigInt
+  name      String
+  trigger   AutomationTrigger
+  config    Json?
+  message   String
+  delay     Int               @default(0)
+  status    AutomationStatus  @default(ACTIVE)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  store Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  logs  AutomationLog[]
+
+  @@map("automations")
+}
+
+model AutomationLog {
+  id                 BigInt   @id @default(autoincrement())
+  automationId       BigInt
+  telegramCustomerId BigInt
+  sentAt             DateTime @default(now())
+  success            Boolean  @default(true)
+  error              String?
+
+  automation       Automation       @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  telegramCustomer TelegramCustomer @relation(fields: [telegramCustomerId], references: [id], onDelete: Cascade)
+
+  @@map("automation_logs")
+}
+
+model Event {
+  id                 BigInt   @id @default(autoincrement())
+  storeId            BigInt
+  telegramCustomerId BigInt?
+  eventName          String
+  properties         Json?
+  createdAt          DateTime @default(now())
+
+  store            Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  telegramCustomer TelegramCustomer? @relation(fields: [telegramCustomerId], references: [id])
+
+  @@index([storeId, eventName, createdAt])
+  @@map("events")
+}
+
+model AnalyticsDaily {
+  id             BigInt   @id @default(autoincrement())
+  storeId        BigInt
+  date           DateTime @db.Date
+  totalOrders    Int      @default(0)
+  totalRevenue   BigInt   @default(0)
+  newCustomers   Int      @default(0)
+  activeCustomers Int     @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, date])
+  @@map("analytics_daily")
+}
+
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  storeId   BigInt?
+  userId    BigInt?
+  action    String
+  entity    String
+  entityId  BigInt?
+  oldData   Json?
+  newData   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  store Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, createdAt])
+  @@map("audit_logs")
+}
