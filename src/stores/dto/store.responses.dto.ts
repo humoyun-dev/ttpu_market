@@ -16,6 +16,12 @@ export class StoreTelegramBotSummaryDto {
 }
 
 export class StoreTelegramBotDetailDto extends StoreTelegramBotSummaryDto {
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'https://example.com/telegram/webhook/1/secret',
+  })
+  webhookUrl?: string | null;
 }
 
 export class StoreListCountDto {

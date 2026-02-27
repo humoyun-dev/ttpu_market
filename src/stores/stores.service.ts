@@ -47,6 +47,7 @@ export class StoresService {
             botId: true,
             username: true,
             isActive: true,
+            webhookUrl: true,
           },
         },
         _count: {

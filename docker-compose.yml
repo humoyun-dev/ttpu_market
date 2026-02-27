@@ -47,7 +47,9 @@ services:
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=change_me_to_a_secure_random_string_at_least_32_chars
       - ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-      - TELEGRAM_WEBHOOK_BASE_URL=https://your-public-domain.com
+      - TELEGRAM_WEBHOOK_BASE_URL=${TELEGRAM_WEBHOOK_BASE_URL:-https://your-public-domain.com}
+      - SELLER_BOT_WEBHOOK_SECRET=${SELLER_BOT_WEBHOOK_SECRET:-change_me_seller_bot_webhook_secret}
+      - SELLER_BOT_TOKEN=${SELLER_BOT_TOKEN:-change_me_seller_bot_token}
       - PAYMENT_SIGNATURE_STRICT=false
     depends_on:
       postgres:

@@ -38,10 +38,10 @@ export class TelegramBotService {
     // Determine webhook URL
     const webhookBaseUrl =
       dto.webhookBaseUrl || this.configService.get<string>('TELEGRAM_WEBHOOK_BASE_URL');
-    const webhookUrl = `${webhookBaseUrl}/telegram/webhook/${storeId}`;
+    const webhookUrl = `${webhookBaseUrl}/telegram/webhook/${storeId}/${webhookSecret}`;
 
     // Set webhook
-    await this.telegramApi.setWebhook(dto.token, webhookUrl, webhookSecret);
+    await this.telegramApi.setWebhook(dto.token, webhookUrl);
 
     // Check if bot already exists for this store
     const existingBot = await this.prisma.telegramBot.findUnique({
@@ -99,6 +99,7 @@ export class TelegramBotService {
       id: bot.id.toString(),
       botId: bot.botId.toString(),
       username: bot.username,
+      webhookUrl: bot.webhookUrl,
       webhookStatus: bot.isActive ? 'active' : 'inactive',
       isActive: bot.isActive,
     };

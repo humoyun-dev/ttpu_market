@@ -7,7 +7,6 @@ import {
   UseGuards,
   HttpCode,
   BadRequestException,
-  Headers,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { TelegramBotService } from './telegram-bot.service';
@@ -72,17 +71,17 @@ export class TelegramController {
     return this.botService.disconnect(storeIdBigInt);
   }
 
-  @Post('telegram/webhook/:storeId')
+  @Post('telegram/webhook/:storeId/:secret')
   @HttpCode(200)
   @ApiOperation({ summary: 'Telegram webhook endpoint' })
   @ApiResponse({ status: 200, description: 'Update processed' })
   async webhook(
     @Param('storeId') storeId: string,
-    @Headers('x-telegram-bot-api-secret-token') secretToken: string | undefined,
+    @Param('secret') secret: string,
     @Body() update: any,
   ) {
     const storeIdBigInt = parseBigIntId(storeId);
-    await this.webhookService.handleWebhook(storeIdBigInt, secretToken ?? '', update);
+    await this.webhookService.handleWebhook(storeIdBigInt, secret, update);
     return { ok: true };
   }
 }

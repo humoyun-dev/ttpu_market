@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { TelegramApiService } from './telegram-api.service';
@@ -86,7 +86,7 @@ export class TelegramWebhookService {
     const isValid = await this.botService.validateWebhookSecret(storeId, secret);
     if (!isValid) {
       this.logger.warn(`Invalid webhook secret for store ${storeId}`);
-      return;
+      throw new ForbiddenException('Invalid webhook secret');
     }
 
     // Deduplicate updates

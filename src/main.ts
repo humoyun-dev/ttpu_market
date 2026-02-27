@@ -57,6 +57,7 @@ async function bootstrap() {
       { path: 'payments/payme/callback', method: RequestMethod.POST },
       { path: 'payments/click/callback', method: RequestMethod.POST },
       { path: 'telegram/webhook/(.*)', method: RequestMethod.POST },
+      { path: 'seller-bot/webhook/(.*)', method: RequestMethod.POST },
     ],
   });
 
