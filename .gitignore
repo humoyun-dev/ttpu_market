@@ -35,3 +35,6 @@ yarn-error.log*
 # Prisma
 prisma/*.db
 prisma/*.db-journal
+
+
+documents/
