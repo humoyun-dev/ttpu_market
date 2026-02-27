@@ -1,22 +1,19 @@
-import { env } from "@/lib/env/env";
-import { httpClient } from "@/lib/http/client";
 import type { Customer } from "@/features/seller/customers/customers.types";
-import { mockGetCustomer, mockListCustomers } from "@/features/seller/customers/mocks";
 
 export async function listCustomers(storeId: string): Promise<Customer[]> {
-  if (env.NEXT_PUBLIC_USE_MOCKS) {
-    return mockListCustomers(storeId);
-  }
-  return await httpClient<Customer[]>(`/stores/${storeId}/customers`);
+  // BACKEND TASK: implement `GET /api/v1/stores/:storeId/customers` (or a TelegramCustomer endpoint)
+  // and document response schema in OpenAPI.
+  throw new Error(
+    `BACKEND TASK: Customers endpoints are not implemented (requested storeId=${storeId}).`
+  );
 }
 
 export async function getCustomer(
   storeId: string,
   customerId: string
 ): Promise<Customer | null> {
-  if (env.NEXT_PUBLIC_USE_MOCKS) {
-    return mockGetCustomer(storeId, customerId);
-  }
-  return await httpClient<Customer>(`/stores/${storeId}/customers/${customerId}`);
+  // BACKEND TASK: implement `GET /api/v1/stores/:storeId/customers/:customerId` and document in OpenAPI.
+  throw new Error(
+    `BACKEND TASK: Customers endpoints are not implemented (requested storeId=${storeId}, customerId=${customerId}).`
+  );
 }
-

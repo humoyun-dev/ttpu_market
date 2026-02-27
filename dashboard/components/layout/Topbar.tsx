@@ -20,9 +20,12 @@ import {
 import { logout } from "@/features/auth/auth.api";
 import { useAuthStore } from "@/features/auth/auth.store";
 
+function deleteCookie(name: string) {
+  document.cookie = `${encodeURIComponent(name)}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
 export function Topbar({ role }: { role: Role }) {
   const router = useRouter();
-  const setRole = useAuthStore((s) => s.setRole);
   const setActiveStoreId = useAuthStore((s) => s.setActiveStoreId);
   const [loggingOut, setLoggingOut] = React.useState(false);
 
@@ -53,8 +56,8 @@ export function Topbar({ role }: { role: Role }) {
                   setLoggingOut(true);
                   await logout();
                 } finally {
-                  setRole(null);
                   setActiveStoreId(null);
+                  deleteCookie("ttpu_store_id");
                   setLoggingOut(false);
                   router.push(ROUTES.login);
                 }

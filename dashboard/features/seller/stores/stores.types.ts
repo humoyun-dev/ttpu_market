@@ -1,6 +1,3 @@
-export type SellerStore = {
-  id: string;
-  name: string;
-  status: "ACTIVE" | "SUSPENDED" | "DELETED";
-};
+import type { components } from "@/lib/http/openapi";
 
+export type SellerStore = components["schemas"]["AuthStoreSummaryDto"];

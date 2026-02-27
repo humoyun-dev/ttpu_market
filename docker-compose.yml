@@ -41,6 +41,8 @@ services:
     environment:
       - PORT=3000
       - NODE_ENV=production
+      - CORS_ORIGINS=http://localhost:3100
+      - COOKIE_SECURE=false
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/tgshop?schema=public
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=change_me_to_a_secure_random_string_at_least_32_chars
@@ -52,6 +54,22 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: tgshop_dashboard
+    ports:
+      - '3100:3100'
+    environment:
+      - NODE_ENV=production
+      - PORT=3100
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
+      - API_INTERNAL_BASE_URL=http://api:3000
+    depends_on:
+      - api
     restart: unless-stopped
 
 volumes:

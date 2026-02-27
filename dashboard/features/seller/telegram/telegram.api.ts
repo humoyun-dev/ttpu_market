@@ -1,43 +1,29 @@
-import { env } from "@/lib/env/env";
 import { httpClient } from "@/lib/http/client";
 import type {
   TelegramConnectInput,
   TelegramStatus,
 } from "@/features/seller/telegram/telegram.types";
-import {
-  mockConnectTelegram,
-  mockDisconnectTelegram,
-  mockGetTelegramStatus,
-} from "@/features/seller/telegram/mocks";
 
 export async function getTelegramStatus(storeId: string): Promise<TelegramStatus> {
-  if (env.NEXT_PUBLIC_USE_MOCKS) {
-    return mockGetTelegramStatus(storeId);
-  }
-  return await httpClient<TelegramStatus>(`/stores/${storeId}/telegram/status`);
+  // BACKEND TASK: add OpenAPI response schema for `GET /api/v1/stores/:storeId/telegram/bot`.
+  return await httpClient<TelegramStatus>(`/api/v1/stores/${storeId}/telegram/bot`);
 }
 
 export async function connectTelegram(
   storeId: string,
   input: TelegramConnectInput
 ): Promise<void> {
-  if (env.NEXT_PUBLIC_USE_MOCKS) {
-    mockConnectTelegram(storeId);
-    return;
-  }
-  await httpClient<void>(`/stores/${storeId}/telegram/connect`, {
+  // BACKEND TASK: add OpenAPI response schema for `POST /api/v1/stores/:storeId/telegram/connect`.
+  await httpClient<void>(`/api/v1/stores/${storeId}/telegram/connect`, {
     method: "POST",
     body: input,
   });
 }
 
 export async function disconnectTelegram(storeId: string): Promise<void> {
-  if (env.NEXT_PUBLIC_USE_MOCKS) {
-    mockDisconnectTelegram(storeId);
-    return;
-  }
-  await httpClient<void>(`/stores/${storeId}/telegram/disconnect`, {
-    method: "POST",
-  });
+  // BACKEND TASK: implement a disconnect endpoint (e.g. `DELETE /api/v1/stores/:storeId/telegram/bot`)
+  // and document it in OpenAPI. Dashboard will wire it once available.
+  throw new Error(
+    `BACKEND TASK: Telegram disconnect endpoint is not implemented (requested storeId=${storeId}).`
+  );
 }
-

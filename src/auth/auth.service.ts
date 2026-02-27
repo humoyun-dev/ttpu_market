@@ -1,8 +1,35 @@
 import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { StoreStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RegisterDto, LoginDto } from './dto';
+
+type StoreSummary = {
+  id: string;
+  name: string;
+  slug: string;
+  status: StoreStatus;
+};
+
+const PERMISSIONS_BY_ROLE: Record<UserRole, string[]> = {
+  ADMIN: [
+    'sellers:read',
+    'sellers:update',
+    'stores:read',
+    'stores:update',
+    'orders:read',
+    'metrics:read',
+  ],
+  MERCHANT: [
+    'products:read',
+    'products:write',
+    'orders:read',
+    'orders:update_status',
+    'settings:telegram',
+    'settings:payments',
+  ],
+};
 
 @Injectable()
 export class AuthService {
@@ -92,7 +119,15 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    return user;
+    const permissions = PERMISSIONS_BY_ROLE[user.role] ?? [];
+    const stores = user.role === 'MERCHANT' ? await this.listAccessibleStores(userId) : [];
+
+    return {
+      ...user,
+      id: user.id.toString(),
+      permissions,
+      stores,
+    };
   }
 
   async validateUser(userId: bigint) {
@@ -105,6 +140,42 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  private async listAccessibleStores(userId: bigint): Promise<StoreSummary[]> {
+    const [owned, staffLinks] = await Promise.all([
+      this.prisma.store.findMany({
+        where: { ownerId: userId },
+        select: { id: true, name: true, slug: true, status: true },
+      }),
+      this.prisma.storeStaff.findMany({
+        where: { userId },
+        select: {
+          store: { select: { id: true, name: true, slug: true, status: true } },
+        },
+      }),
+    ]);
+
+    const storesById = new Map<string, StoreSummary>();
+    for (const store of owned) {
+      storesById.set(store.id.toString(), {
+        id: store.id.toString(),
+        name: store.name,
+        slug: store.slug,
+        status: store.status,
+      });
+    }
+    for (const link of staffLinks) {
+      const store = link.store;
+      storesById.set(store.id.toString(), {
+        id: store.id.toString(),
+        name: store.name,
+        slug: store.slug,
+        status: store.status,
+      });
+    }
+
+    return Array.from(storesById.values());
   }
 
   private generateToken(userId: bigint, email: string): string {

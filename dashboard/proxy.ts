@@ -1,17 +1,39 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const ROLE_COOKIE = "ttpu_role";
+import type { ApiAuthMe } from "@/features/auth/auth.types";
+import { toDashboardRole } from "@/features/auth/auth.types";
+import { httpClient } from "@/lib/http/client";
+import type { Role } from "@/lib/constants/roles";
+
 const STORE_COOKIE = "ttpu_store_id";
 
-export function proxy(request: NextRequest) {
+async function getMeFromBackend(request: NextRequest): Promise<ApiAuthMe | null> {
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  if (!cookieHeader) return null;
+
+  try {
+    return await httpClient<ApiAuthMe>("/api/v1/auth/me", {
+      headers: { cookie: cookieHeader },
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/api")) {
     return NextResponse.next();
   }
 
-  const role = request.cookies.get(ROLE_COOKIE)?.value ?? null;
-  const storeId = request.cookies.get(STORE_COOKIE)?.value ?? null;
+  const storeIdFromCookie = request.cookies.get(STORE_COOKIE)?.value ?? null;
+  const me = await getMeFromBackend(request);
+  const role: Role | null = me ? toDashboardRole(me.role) : null;
+  const storeId =
+    role === "seller" && me?.stores?.some((s) => s.id === storeIdFromCookie)
+      ? storeIdFromCookie
+      : null;
 
   if (pathname === "/login") {
     if (!role) return NextResponse.next();
@@ -53,4 +75,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp)$).*)",
   ],
 };
-

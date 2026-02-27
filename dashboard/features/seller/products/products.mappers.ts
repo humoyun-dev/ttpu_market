@@ -8,9 +8,8 @@ import type { ProductFormValues } from "@/features/seller/products/products.sche
 export function toCreateProductInput(values: ProductFormValues): CreateProductInput {
   return {
     name: values.name.trim(),
-    description: values.description?.trim() ? values.description.trim() : null,
-    priceMinor: parseDecimalToMinorUnits(values.price, { decimals: 2 }),
-    currency: "UZS",
+    description: values.description?.trim() ? values.description.trim() : undefined,
+    price: Number(parseDecimalToMinorUnits(values.price, { decimals: 0 })),
     isActive: values.isActive,
   };
 }
@@ -18,4 +17,3 @@ export function toCreateProductInput(values: ProductFormValues): CreateProductIn
 export function toUpdateProductInput(values: ProductFormValues): UpdateProductInput {
   return toCreateProductInput(values);
 }
-

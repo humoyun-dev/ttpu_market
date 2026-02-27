@@ -1,20 +1,14 @@
 import type { Role } from "@/lib/constants/roles";
+import type { components } from "@/lib/http/openapi";
 
-export type AuthUser = {
-  id: string;
-  email: string;
-  role: Role;
-  storeIds: string[];
-};
+export type ApiLoginInput = components["schemas"]["LoginDto"];
+export type ApiAuthSession = components["schemas"]["AuthSessionDto"];
+export type ApiAuthMe = components["schemas"]["AuthMeDto"];
+export type ApiCsrfToken = components["schemas"]["CsrfTokenDto"];
+export type ApiLogout = components["schemas"]["LogoutDto"];
+export type ApiUserRole = components["schemas"]["AuthUserDto"]["role"];
+export type ApiRole = ApiUserRole | ApiAuthMe["role"];
 
-export type AuthSession = {
-  user: AuthUser;
-  activeStoreId: string | null;
-};
-
-export type LoginInput = {
-  role: Role;
-  email: string;
-  password: string;
-};
-
+export function toDashboardRole(apiRole: ApiRole): Role {
+  return apiRole === "ADMIN" ? "admin" : "seller";
+}

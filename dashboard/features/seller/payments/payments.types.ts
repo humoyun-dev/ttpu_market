@@ -1,16 +1,5 @@
-export type ProviderSettings = {
-  merchantId: string;
-  secretKeyLast4: string | null;
-  strictMode: boolean;
-};
+import type { components } from "@/lib/http/openapi";
 
-export type PaymentSettings = {
-  payme: ProviderSettings;
-  click: ProviderSettings;
-};
+export type PaymentSettings = unknown;
 
-export type UpdatePaymentSettingsInput = {
-  payme?: { merchantId: string; secretKey: string; strictMode: boolean };
-  click?: { merchantId: string; secretKey: string; strictMode: boolean };
-};
-
+export type UpdatePaymentSettingsInput = components["schemas"]["UpdatePaymentSettingsDto"];

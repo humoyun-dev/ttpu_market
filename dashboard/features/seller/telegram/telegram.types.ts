@@ -1,10 +1,5 @@
-export type TelegramStatus = {
-  connected: boolean;
-  webhookHealth: "OK" | "ERROR" | "UNKNOWN";
-  lastUpdatedAt: string | null;
-};
+import type { components } from "@/lib/http/openapi";
 
-export type TelegramConnectInput = {
-  token: string;
-};
+export type TelegramStatus = unknown;
 
+export type TelegramConnectInput = components["schemas"]["ConnectTelegramDto"];

@@ -1,15 +1,15 @@
 import { z } from "zod";
 
-const moneyDecimalSchema = z
+const moneyIntegerSchema = z
   .string()
   .trim()
   .min(1)
-  .regex(/^\\d+(\\.\\d{1,2})?$/, "Enter a valid amount (max 2 decimals)");
+  .regex(/^\\d+$/, "Enter a whole-number amount");
 
 export const productFormSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   description: z.string().trim().optional(),
-  price: moneyDecimalSchema,
+  price: moneyIntegerSchema,
   isActive: z.boolean(),
 });
 

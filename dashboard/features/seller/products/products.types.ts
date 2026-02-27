@@ -1,22 +1,6 @@
-export type Product = {
-  id: string;
-  storeId: string;
-  name: string;
-  description: string | null;
-  priceMinor: string;
-  currency: "UZS";
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
+import type { components } from "@/lib/http/openapi";
 
-export type CreateProductInput = {
-  name: string;
-  description: string | null;
-  priceMinor: string;
-  currency: "UZS";
-  isActive: boolean;
-};
+export type Product = unknown;
 
-export type UpdateProductInput = Partial<CreateProductInput>;
-
+export type CreateProductInput = components["schemas"]["CreateProductDto"];
+export type UpdateProductInput = components["schemas"]["UpdateProductDto"];

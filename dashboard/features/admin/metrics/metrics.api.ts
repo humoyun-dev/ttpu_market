@@ -1,12 +1,7 @@
-import { env } from "@/lib/env/env";
-import { httpClient } from "@/lib/http/client";
 import type { AdminMetrics } from "@/features/admin/metrics/metrics.types";
-import { mockGetAdminMetrics } from "@/features/admin/metrics/mocks";
 
 export async function getAdminMetrics(): Promise<AdminMetrics> {
-  if (env.NEXT_PUBLIC_USE_MOCKS) {
-    return mockGetAdminMetrics();
-  }
-  return await httpClient<AdminMetrics>("/admin/metrics");
+  // BACKEND TASK: implement an admin metrics endpoint (e.g. `GET /api/v1/admin/metrics`)
+  // and document response schema in OpenAPI.
+  throw new Error(`BACKEND TASK: Admin metrics endpoint is not implemented.`);
 }
-

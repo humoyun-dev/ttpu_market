@@ -1,25 +1,26 @@
-import { env } from "@/lib/env/env";
 import { httpClient } from "@/lib/http/client";
-import type { AuthSession, LoginInput } from "@/features/auth/auth.types";
-import { mockLogin, mockLogout } from "@/features/auth/mocks";
+import type {
+  ApiAuthMe,
+  ApiAuthSession,
+  ApiCsrfToken,
+  ApiLoginInput,
+} from "@/features/auth/auth.types";
 
-export async function login(input: LoginInput): Promise<AuthSession> {
-  if (env.NEXT_PUBLIC_USE_MOCKS) {
-    return mockLogin(input);
-  }
+export async function getCsrfToken(): Promise<ApiCsrfToken> {
+  return await httpClient<ApiCsrfToken>("/api/v1/auth/csrf");
+}
 
-  return await httpClient<AuthSession>("/auth/login", {
+export async function login(input: ApiLoginInput): Promise<ApiAuthSession> {
+  return await httpClient<ApiAuthSession>("/api/v1/auth/login", {
     method: "POST",
     body: input,
   });
 }
 
 export async function logout(): Promise<void> {
-  if (env.NEXT_PUBLIC_USE_MOCKS) {
-    mockLogout();
-    return;
-  }
-
-  await httpClient<void>("/auth/logout", { method: "POST" });
+  await httpClient<void>("/api/v1/auth/logout", { method: "POST" });
 }
 
+export async function getMe(): Promise<ApiAuthMe> {
+  return await httpClient<ApiAuthMe>("/api/v1/auth/me");
+}

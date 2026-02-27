@@ -1,36 +1,23 @@
-import { env } from "@/lib/env/env";
-import { httpClient } from "@/lib/http/client";
 import type { AdminSeller } from "@/features/admin/sellers/sellers.types";
-import {
-  mockGetSeller,
-  mockListSellers,
-  mockSetSellerActive,
-} from "@/features/admin/sellers/mocks";
 
 export async function listSellers(): Promise<AdminSeller[]> {
-  if (env.NEXT_PUBLIC_USE_MOCKS) {
-    return mockListSellers();
-  }
-  return await httpClient<AdminSeller[]>("/admin/sellers");
+  // BACKEND TASK: implement `GET /api/v1/admin/sellers` and document response schema in OpenAPI.
+  throw new Error(`BACKEND TASK: Admin sellers endpoints are not implemented.`);
 }
 
 export async function getSeller(sellerId: string): Promise<AdminSeller | null> {
-  if (env.NEXT_PUBLIC_USE_MOCKS) {
-    return mockGetSeller(sellerId);
-  }
-  return await httpClient<AdminSeller>(`/admin/sellers/${sellerId}`);
+  // BACKEND TASK: implement `GET /api/v1/admin/sellers/:sellerId` and document response schema in OpenAPI.
+  throw new Error(
+    `BACKEND TASK: Admin sellers endpoints are not implemented (requested sellerId=${sellerId}).`
+  );
 }
 
 export async function setSellerActive(
   sellerId: string,
   isActive: boolean
 ): Promise<AdminSeller> {
-  if (env.NEXT_PUBLIC_USE_MOCKS) {
-    return mockSetSellerActive(sellerId, isActive);
-  }
-  return await httpClient<AdminSeller>(`/admin/sellers/${sellerId}/status`, {
-    method: "PATCH",
-    body: { isActive },
-  });
+  // BACKEND TASK: implement `PATCH /api/v1/admin/sellers/:sellerId/status` and document in OpenAPI.
+  throw new Error(
+    `BACKEND TASK: Admin sellers endpoints are not implemented (requested sellerId=${sellerId}, isActive=${isActive}).`
+  );
 }
-

@@ -1,7 +1,28 @@
-import { Controller, Post, Get, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiUnauthorizedResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { randomBytes } from 'crypto';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto } from './dto';
+import { AuthMeDto, AuthSessionDto, CsrfTokenDto, LoginDto, LogoutDto, RegisterDto } from './dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators';
 
@@ -10,30 +31,78 @@ import { CurrentUser } from '../common/decorators';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  private static accessTokenCookieOptions() {
+    const secure = process.env.COOKIE_SECURE === 'true';
+    return {
+      httpOnly: true,
+      secure,
+      sameSite: 'lax' as const,
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    };
+  }
+
+  private static csrfCookieOptions() {
+    const secure = process.env.COOKIE_SECURE === 'true';
+    return {
+      httpOnly: false,
+      secure,
+      sameSite: 'lax' as const,
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    };
+  }
+
   @Post('register')
   @ApiOperation({ summary: 'Register a new user' })
-  @ApiResponse({ status: 201, description: 'User registered successfully' })
-  @ApiResponse({ status: 409, description: 'Email already registered' })
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  @ApiCreatedResponse({ description: 'User registered successfully', type: AuthSessionDto })
+  @ApiConflictResponse({ description: 'Email already registered' })
+  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.register(dto);
+    res.cookie('access_token', result.accessToken, AuthController.accessTokenCookieOptions());
+    return result;
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with email and password' })
-  @ApiResponse({ status: 200, description: 'Login successful' })
-  @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  @ApiOkResponse({ description: 'Login successful', type: AuthSessionDto })
+  @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
+  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.login(dto);
+    res.cookie('access_token', result.accessToken, AuthController.accessTokenCookieOptions());
+    return result;
+  }
+
+  @Get('csrf')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get CSRF token (double-submit cookie)' })
+  @ApiOkResponse({ description: 'CSRF token', type: CsrfTokenDto })
+  async getCsrf(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const existing = req.cookies?.csrf_token;
+    const csrfToken = typeof existing === 'string' && existing.length > 0 ? existing : randomBytes(32).toString('hex');
+    res.cookie('csrf_token', csrfToken, AuthController.csrfCookieOptions());
+    return { csrfToken };
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Logout (clear auth cookies)' })
+  @ApiOkResponse({ description: 'Logged out', type: LogoutDto })
+  async logout(@Res({ passthrough: true }) res: Response) {
+    res.clearCookie('access_token', AuthController.accessTokenCookieOptions());
+    res.clearCookie('csrf_token', AuthController.csrfCookieOptions());
+    return { ok: true };
   }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @ApiCookieAuth('access_token')
   @ApiOperation({ summary: 'Get current user profile' })
-  @ApiResponse({ status: 200, description: 'User profile' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async getMe(@CurrentUser() user: any) {
+  @ApiOkResponse({ description: 'User profile', type: AuthMeDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  async getMe(@CurrentUser() user: { id: string }) {
     return this.authService.getMe(BigInt(user.id));
   }
 }
