@@ -9,7 +9,14 @@ import {
   UseGuards,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
 import { ProductsService } from './products.service';
 import {
@@ -17,6 +24,12 @@ import {
   UpdateCategoryDto,
   CreateProductDto,
   UpdateProductDto,
+  DeleteResponseDto,
+  CategoryDto,
+  CategoryDetailDto,
+  CategoryListItemDto,
+  ProductDetailDto,
+  ProductDto,
 } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators';
@@ -36,7 +49,7 @@ export class CatalogController {
   // Categories
   @Post('categories')
   @ApiOperation({ summary: 'Create a category' })
-  @ApiResponse({ status: 201, description: 'Category created' })
+  @ApiCreatedResponse({ status: 201, description: 'Category created', type: CategoryDto })
   async createCategory(
     @CurrentUser() user: any,
     @Param('storeId') storeId: string,
@@ -48,7 +61,7 @@ export class CatalogController {
 
   @Get('categories')
   @ApiOperation({ summary: 'Get all categories' })
-  @ApiResponse({ status: 200, description: 'List of categories' })
+  @ApiOkResponse({ status: 200, description: 'List of categories', type: [CategoryListItemDto] })
   async getCategories(@CurrentUser() user: any, @Param('storeId') storeId: string) {
     await this.storesService.verifyOwnership(BigInt(storeId), BigInt(user.id));
     return this.categoriesService.findAll(BigInt(storeId));
@@ -56,7 +69,7 @@ export class CatalogController {
 
   @Get('categories/:id')
   @ApiOperation({ summary: 'Get a category by ID' })
-  @ApiResponse({ status: 200, description: 'Category details' })
+  @ApiOkResponse({ status: 200, description: 'Category details', type: CategoryDetailDto })
   async getCategory(
     @CurrentUser() user: any,
     @Param('storeId') storeId: string,
@@ -68,7 +81,7 @@ export class CatalogController {
 
   @Patch('categories/:id')
   @ApiOperation({ summary: 'Update a category' })
-  @ApiResponse({ status: 200, description: 'Category updated' })
+  @ApiOkResponse({ status: 200, description: 'Category updated', type: CategoryDto })
   async updateCategory(
     @CurrentUser() user: any,
     @Param('storeId') storeId: string,
@@ -81,7 +94,7 @@ export class CatalogController {
 
   @Delete('categories/:id')
   @ApiOperation({ summary: 'Delete a category' })
-  @ApiResponse({ status: 200, description: 'Category deleted' })
+  @ApiOkResponse({ status: 200, description: 'Category deleted', type: DeleteResponseDto })
   async deleteCategory(
     @CurrentUser() user: any,
     @Param('storeId') storeId: string,
@@ -94,7 +107,7 @@ export class CatalogController {
   // Products
   @Post('products')
   @ApiOperation({ summary: 'Create a product' })
-  @ApiResponse({ status: 201, description: 'Product created' })
+  @ApiCreatedResponse({ status: 201, description: 'Product created', type: ProductDto })
   async createProduct(
     @CurrentUser() user: any,
     @Param('storeId') storeId: string,
@@ -108,7 +121,7 @@ export class CatalogController {
   @ApiOperation({ summary: 'Get all products' })
   @ApiQuery({ name: 'categoryId', required: false })
   @ApiQuery({ name: 'isActive', required: false, type: Boolean })
-  @ApiResponse({ status: 200, description: 'List of products' })
+  @ApiOkResponse({ status: 200, description: 'List of products', type: [ProductDto] })
   async getProducts(
     @CurrentUser() user: any,
     @Param('storeId') storeId: string,
@@ -121,7 +134,7 @@ export class CatalogController {
 
   @Get('products/:id')
   @ApiOperation({ summary: 'Get a product by ID' })
-  @ApiResponse({ status: 200, description: 'Product details' })
+  @ApiOkResponse({ status: 200, description: 'Product details', type: ProductDetailDto })
   async getProduct(
     @CurrentUser() user: any,
     @Param('storeId') storeId: string,
@@ -133,7 +146,7 @@ export class CatalogController {
 
   @Patch('products/:id')
   @ApiOperation({ summary: 'Update a product' })
-  @ApiResponse({ status: 200, description: 'Product updated' })
+  @ApiOkResponse({ status: 200, description: 'Product updated', type: ProductDto })
   async updateProduct(
     @CurrentUser() user: any,
     @Param('storeId') storeId: string,
@@ -146,7 +159,7 @@ export class CatalogController {
 
   @Delete('products/:id')
   @ApiOperation({ summary: 'Delete a product' })
-  @ApiResponse({ status: 200, description: 'Product deleted' })
+  @ApiOkResponse({ status: 200, description: 'Product deleted', type: DeleteResponseDto })
   async deleteProduct(
     @CurrentUser() user: any,
     @Param('storeId') storeId: string,

@@ -32,7 +32,8 @@ export async function proxy(request: NextRequest) {
   const me = await getMeFromBackend(request);
   const role: Role | null = me ? toDashboardRole(me.role) : null;
   const storeId =
-    role === "seller" && me?.stores?.some((s) => s.id === storeIdFromCookie)
+    role === "seller" &&
+    me?.stores?.some((s) => s.id === storeIdFromCookie && s.status === "ACTIVE")
       ? storeIdFromCookie
       : null;
 
@@ -46,7 +47,7 @@ export async function proxy(request: NextRequest) {
     if (role === "seller") {
       return NextResponse.redirect(
         new URL(
-          storeId ? "/seller/dashboard" : "/seller/store/switch",
+          storeId ? "/seller/dashboard" : "/seller/stores",
           request.url
         )
       );
@@ -63,8 +64,12 @@ export async function proxy(request: NextRequest) {
     if (role !== "seller") {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-    if (pathname !== "/seller/store/switch" && !storeId) {
-      return NextResponse.redirect(new URL("/seller/store/switch", request.url));
+    const isStoreSelectionRoute =
+      pathname === "/seller/stores" ||
+      pathname.startsWith("/seller/stores/") ||
+      pathname === "/seller/store/switch";
+    if (!isStoreSelectionRoute && !storeId) {
+      return NextResponse.redirect(new URL("/seller/stores", request.url));
     }
   }
 

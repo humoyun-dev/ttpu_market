@@ -47,7 +47,7 @@ export function LoginForm() {
         return;
       }
 
-      router.push(ROUTES.seller.storeSwitch);
+      router.push(ROUTES.seller.stores);
     } catch {
       setError("Login failed. Please check your credentials.");
     }

@@ -6,6 +6,7 @@ import {
   UseGuards,
   ParseIntPipe,
   DefaultValuePipe,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,6 +18,15 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { EventsService } from './events.service';
 import { AnalyticsService } from './analytics.service';
+import { CurrentUser } from '../common/decorators';
+import { StoresService } from '../stores/stores.service';
+
+function parseBigIntId(id: string): bigint {
+  if (!/^\d+$/.test(id)) {
+    throw new BadRequestException('Invalid ID format');
+  }
+  return BigInt(id);
+}
 
 @ApiTags('Analytics')
 @ApiBearerAuth()
@@ -26,13 +36,16 @@ export class AnalyticsController {
   constructor(
     private readonly eventsService: EventsService,
     private readonly analyticsService: AnalyticsService,
+    private readonly storesService: StoresService,
   ) {}
 
   @Get('dashboard')
   @ApiOperation({ summary: 'Get store dashboard analytics' })
   @ApiParam({ name: 'storeId', description: 'Store ID' })
-  async getDashboard(@Param('storeId') storeId: string) {
-    return this.analyticsService.getDashboard(BigInt(storeId));
+  async getDashboard(@CurrentUser() user: any, @Param('storeId') storeId: string) {
+    const storeIdBigInt = parseBigIntId(storeId);
+    await this.storesService.verifyOwnership(storeIdBigInt, BigInt(user.id));
+    return this.analyticsService.getDashboard(storeIdBigInt);
   }
 
   @Get('revenue')
@@ -45,10 +58,13 @@ export class AnalyticsController {
     example: 30,
   })
   async getRevenueChart(
+    @CurrentUser() user: any,
     @Param('storeId') storeId: string,
     @Query('days', new DefaultValuePipe(30), ParseIntPipe) days: number,
   ) {
-    return this.analyticsService.getRevenueChart(BigInt(storeId), days);
+    const storeIdBigInt = parseBigIntId(storeId);
+    await this.storesService.verifyOwnership(storeIdBigInt, BigInt(user.id));
+    return this.analyticsService.getRevenueChart(storeIdBigInt, days);
   }
 
   @Get('customers')
@@ -61,10 +77,13 @@ export class AnalyticsController {
     example: 30,
   })
   async getCustomerGrowth(
+    @CurrentUser() user: any,
     @Param('storeId') storeId: string,
     @Query('days', new DefaultValuePipe(30), ParseIntPipe) days: number,
   ) {
-    return this.analyticsService.getCustomerGrowth(BigInt(storeId), days);
+    const storeIdBigInt = parseBigIntId(storeId);
+    await this.storesService.verifyOwnership(storeIdBigInt, BigInt(user.id));
+    return this.analyticsService.getCustomerGrowth(storeIdBigInt, days);
   }
 
   @Get('events')
@@ -88,12 +107,15 @@ export class AnalyticsController {
     description: 'Filter by event name',
   })
   async getEvents(
+    @CurrentUser() user: any,
     @Param('storeId') storeId: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
     @Query('eventName') eventName?: string,
   ) {
-    return this.eventsService.getEvents(BigInt(storeId), {
+    const storeIdBigInt = parseBigIntId(storeId);
+    await this.storesService.verifyOwnership(storeIdBigInt, BigInt(user.id));
+    return this.eventsService.getEvents(storeIdBigInt, {
       page,
       limit,
       eventName,
@@ -110,11 +132,14 @@ export class AnalyticsController {
     example: 30,
   })
   async getEventCounts(
+    @CurrentUser() user: any,
     @Param('storeId') storeId: string,
     @Query('days', new DefaultValuePipe(30), ParseIntPipe) days: number,
   ) {
+    const storeIdBigInt = parseBigIntId(storeId);
+    await this.storesService.verifyOwnership(storeIdBigInt, BigInt(user.id));
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-    return this.eventsService.getEventCounts(BigInt(storeId), startDate);
+    return this.eventsService.getEventCounts(storeIdBigInt, startDate);
   }
 }

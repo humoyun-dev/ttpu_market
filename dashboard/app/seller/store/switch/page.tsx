@@ -1,5 +1,5 @@
-import { StoreSwitchPage } from "@/features/seller/stores/StoreSwitchPage";
+import { redirect } from "next/navigation";
 
 export default function SellerStoreSwitchPage() {
-  return <StoreSwitchPage />;
+  redirect("/seller/stores");
 }

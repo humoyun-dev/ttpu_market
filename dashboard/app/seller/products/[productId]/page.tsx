@@ -1,13 +1,9 @@
-import { EmptyState } from "@/components/shared/EmptyState";
+import { SellerProductDetailPage } from "@/features/seller/products/SellerProductDetailPage";
 
-export default function SellerProductDetailPage({ params }: { params: { productId: string } }) {
-  return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Edit Product</h1>
-      <EmptyState
-        title="Not wired yet"
-        description={`BACKEND TASK: Add OpenAPI response schemas for store-scoped product detail/update/delete endpoints (product ${params.productId}).`}
-      />
-    </div>
-  );
+export default function SellerProductDetailRoute({
+  params,
+}: {
+  params: { productId: string };
+}) {
+  return <SellerProductDetailPage productId={params.productId} />;
 }

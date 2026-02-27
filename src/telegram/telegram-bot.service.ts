@@ -38,10 +38,10 @@ export class TelegramBotService {
     // Determine webhook URL
     const webhookBaseUrl =
       dto.webhookBaseUrl || this.configService.get<string>('TELEGRAM_WEBHOOK_BASE_URL');
-    const webhookUrl = `${webhookBaseUrl}/telegram/webhook/${storeId}/${webhookSecret}`;
+    const webhookUrl = `${webhookBaseUrl}/telegram/webhook/${storeId}`;
 
     // Set webhook
-    await this.telegramApi.setWebhook(dto.token, webhookUrl);
+    await this.telegramApi.setWebhook(dto.token, webhookUrl, webhookSecret);
 
     // Check if bot already exists for this store
     const existingBot = await this.prisma.telegramBot.findUnique({
@@ -99,10 +99,33 @@ export class TelegramBotService {
       id: bot.id.toString(),
       botId: bot.botId.toString(),
       username: bot.username,
-      webhookUrl: bot.webhookUrl,
       webhookStatus: bot.isActive ? 'active' : 'inactive',
       isActive: bot.isActive,
     };
+  }
+
+  async disconnect(storeId: bigint): Promise<{ disconnected: boolean }> {
+    const bot = await this.prisma.telegramBot.findUnique({
+      where: { storeId },
+    });
+
+    if (!bot) {
+      return { disconnected: true };
+    }
+
+    try {
+      const token = await this.getDecryptedToken(storeId);
+      await this.telegramApi.deleteWebhook(token);
+    } catch (error) {
+      this.logger.warn(`Failed to delete Telegram webhook for store ${storeId}`);
+    }
+
+    await this.prisma.telegramBot.update({
+      where: { storeId },
+      data: { isActive: false },
+    });
+
+    return { disconnected: true };
   }
 
   async getDecryptedToken(storeId: bigint): Promise<string> {

@@ -31,9 +31,8 @@ export function useRequiredStoreId(): string {
       return;
     }
 
-    router.push(ROUTES.seller.storeSwitch);
+    router.push(ROUTES.seller.stores);
   }, [activeStoreId, router, setActiveStoreId]);
 
   return activeStoreId ?? "";
 }
-

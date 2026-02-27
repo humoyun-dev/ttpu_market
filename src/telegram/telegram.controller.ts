@@ -1,4 +1,14 @@
-import { Controller, Post, Get, Body, Param, UseGuards, HttpCode, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  UseGuards,
+  HttpCode,
+  BadRequestException,
+  Headers,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { TelegramBotService } from './telegram-bot.service';
 import { TelegramWebhookService } from './telegram-webhook.service';
@@ -51,17 +61,28 @@ export class TelegramController {
     return this.botService.getBotStatus(storeIdBigInt);
   }
 
-  @Post('telegram/webhook/:storeId/:secret')
+  @Post('stores/:storeId/telegram/disconnect')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Disconnect Telegram bot from store' })
+  @ApiResponse({ status: 200, description: 'Bot disconnected' })
+  async disconnect(@CurrentUser() user: any, @Param('storeId') storeId: string) {
+    const storeIdBigInt = parseBigIntId(storeId);
+    await this.storesService.verifyOwnership(storeIdBigInt, BigInt(user.id));
+    return this.botService.disconnect(storeIdBigInt);
+  }
+
+  @Post('telegram/webhook/:storeId')
   @HttpCode(200)
   @ApiOperation({ summary: 'Telegram webhook endpoint' })
   @ApiResponse({ status: 200, description: 'Update processed' })
   async webhook(
     @Param('storeId') storeId: string,
-    @Param('secret') secret: string,
+    @Headers('x-telegram-bot-api-secret-token') secretToken: string | undefined,
     @Body() update: any,
   ) {
     const storeIdBigInt = parseBigIntId(storeId);
-    await this.webhookService.handleWebhook(storeIdBigInt, secret, update);
+    await this.webhookService.handleWebhook(storeIdBigInt, secretToken ?? '', update);
     return { ok: true };
   }
 }

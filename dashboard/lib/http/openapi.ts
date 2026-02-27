@@ -176,7 +176,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/telegram/webhook/{storeId}/{secret}": {
+    "/api/v1/stores/{storeId}/telegram/disconnect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disconnect Telegram bot from store */
+        post: operations["TelegramController_disconnect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/telegram/webhook/{storeId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -778,6 +795,145 @@ export interface components {
              */
             timezone: string;
         };
+        StoreDto: {
+            /** @example 1 */
+            id: string;
+            /** @example 1 */
+            ownerId: string;
+            /** @example My Store */
+            name: string;
+            /** @example my-store */
+            slug: string;
+            /** @example A great store description */
+            description?: string | null;
+            /** @example https://example.com/logo.png */
+            logoUrl?: string | null;
+            /**
+             * @example [
+             *       "uz",
+             *       "ru"
+             *     ]
+             */
+            supportedLanguages: string[];
+            /** @example uz */
+            defaultLanguage: string;
+            /** @example UZS */
+            currency: string;
+            /** @example Asia/Tashkent */
+            timezone: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "SUSPENDED" | "DELETED";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        StoreTelegramBotSummaryDto: {
+            /** @example 1 */
+            id: string;
+            /** @example 123456789 */
+            botId: string;
+            /** @example my_store_bot */
+            username: string;
+            /** @example true */
+            isActive: boolean;
+        };
+        StoreListCountDto: {
+            /** @example 12 */
+            products: number;
+            /** @example 34 */
+            orders: number;
+        };
+        StoreListItemDto: {
+            /** @example 1 */
+            id: string;
+            /** @example 1 */
+            ownerId: string;
+            /** @example My Store */
+            name: string;
+            /** @example my-store */
+            slug: string;
+            /** @example A great store description */
+            description?: string | null;
+            /** @example https://example.com/logo.png */
+            logoUrl?: string | null;
+            /**
+             * @example [
+             *       "uz",
+             *       "ru"
+             *     ]
+             */
+            supportedLanguages: string[];
+            /** @example uz */
+            defaultLanguage: string;
+            /** @example UZS */
+            currency: string;
+            /** @example Asia/Tashkent */
+            timezone: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "SUSPENDED" | "DELETED";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            telegramBot?: components["schemas"]["StoreTelegramBotSummaryDto"] | null;
+            _count: components["schemas"]["StoreListCountDto"];
+        };
+        StoreTelegramBotDetailDto: {
+            /** @example 1 */
+            id: string;
+            /** @example 123456789 */
+            botId: string;
+            /** @example my_store_bot */
+            username: string;
+            /** @example true */
+            isActive: boolean;
+        };
+        StoreDetailCountDto: {
+            /** @example 12 */
+            products: number;
+            /** @example 5 */
+            categories: number;
+            /** @example 34 */
+            orders: number;
+            /** @example 87 */
+            telegramCustomers: number;
+        };
+        StoreDetailDto: {
+            /** @example 1 */
+            id: string;
+            /** @example 1 */
+            ownerId: string;
+            /** @example My Store */
+            name: string;
+            /** @example my-store */
+            slug: string;
+            /** @example A great store description */
+            description?: string | null;
+            /** @example https://example.com/logo.png */
+            logoUrl?: string | null;
+            /**
+             * @example [
+             *       "uz",
+             *       "ru"
+             *     ]
+             */
+            supportedLanguages: string[];
+            /** @example uz */
+            defaultLanguage: string;
+            /** @example UZS */
+            currency: string;
+            /** @example Asia/Tashkent */
+            timezone: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "SUSPENDED" | "DELETED";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            telegramBot?: components["schemas"]["StoreTelegramBotDetailDto"] | null;
+            _count: components["schemas"]["StoreDetailCountDto"];
+        };
         UpdateStoreDto: {
             /** @example My Store */
             name?: string;
@@ -837,6 +993,103 @@ export interface components {
             /** @example true */
             isActive?: boolean;
         };
+        CategoryDto: {
+            /** @example 1 */
+            id: string;
+            /** @example 10 */
+            storeId: string;
+            /** @example 0 */
+            parentId?: string | null;
+            /** @example Electronics */
+            name: string;
+            /** @example Электроника */
+            nameRu?: string | null;
+            /** @example electronics */
+            slug: string;
+            /** @example https://example.com/cat.png */
+            imageUrl?: string | null;
+            /** @example 0 */
+            sortOrder: number;
+            /** @example true */
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CategoryParentDto: {
+            /** @example 1 */
+            id: string;
+            /** @example Electronics */
+            name: string;
+        };
+        CategoryCountDto: {
+            /** @example 12 */
+            products: number;
+            /** @example 3 */
+            children: number;
+        };
+        CategoryListItemDto: {
+            /** @example 1 */
+            id: string;
+            /** @example 10 */
+            storeId: string;
+            /** @example 0 */
+            parentId?: string | null;
+            /** @example Electronics */
+            name: string;
+            /** @example Электроника */
+            nameRu?: string | null;
+            /** @example electronics */
+            slug: string;
+            /** @example https://example.com/cat.png */
+            imageUrl?: string | null;
+            /** @example 0 */
+            sortOrder: number;
+            /** @example true */
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            parent?: components["schemas"]["CategoryParentDto"] | null;
+            _count: components["schemas"]["CategoryCountDto"];
+        };
+        CategoryChildDto: {
+            /** @example 2 */
+            id: string;
+            /** @example Phones */
+            name: string;
+            /** @example phones */
+            slug: string;
+        };
+        CategoryDetailDto: {
+            /** @example 1 */
+            id: string;
+            /** @example 10 */
+            storeId: string;
+            /** @example 0 */
+            parentId?: string | null;
+            /** @example Electronics */
+            name: string;
+            /** @example Электроника */
+            nameRu?: string | null;
+            /** @example electronics */
+            slug: string;
+            /** @example https://example.com/cat.png */
+            imageUrl?: string | null;
+            /** @example 0 */
+            sortOrder: number;
+            /** @example true */
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            parent?: components["schemas"]["CategoryParentDto"] | null;
+            _count: components["schemas"]["CategoryCountDto"];
+            children: components["schemas"]["CategoryChildDto"][];
+        };
         UpdateCategoryDto: {
             /** @example Electronics */
             name?: string;
@@ -851,6 +1104,10 @@ export interface components {
             sortOrder?: number;
             /** @example true */
             isActive?: boolean;
+        };
+        DeleteResponseDto: {
+            /** @example true */
+            deleted: boolean;
         };
         CreateProductDto: {
             /** @example Smartphone */
@@ -872,6 +1129,87 @@ export interface components {
              *     ]
              */
             imageUrls?: string[];
+        };
+        ProductImageDto: {
+            /** @example 1 */
+            id: string;
+            /** @example 100 */
+            productId: string;
+            /** @example https://example.com/img1.jpg */
+            url: string;
+            /** @example 0 */
+            sortOrder: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ProductCategorySummaryDto: {
+            /** @example 1 */
+            id: string;
+            /** @example Electronics */
+            name: string;
+        };
+        ProductDto: {
+            /** @example 1 */
+            id: string;
+            /** @example 10 */
+            storeId: string;
+            /** @example 2 */
+            categoryId?: string | null;
+            /** @example Smartphone */
+            name: string;
+            /** @example A great smartphone */
+            description?: string | null;
+            /** @example 1000000 */
+            price: string;
+            /** @example 100 */
+            stockQty: number;
+            /** @example true */
+            isActive: boolean;
+            /** @example 0 */
+            sortOrder: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            images: components["schemas"]["ProductImageDto"][];
+            category?: components["schemas"]["ProductCategorySummaryDto"] | null;
+        };
+        ProductTranslationDto: {
+            /** @example 1 */
+            id: string;
+            /** @example uz */
+            language: string;
+            /** @example Smartphone */
+            name: string;
+            /** @example A great smartphone */
+            description?: string | null;
+        };
+        ProductDetailDto: {
+            /** @example 1 */
+            id: string;
+            /** @example 10 */
+            storeId: string;
+            /** @example 2 */
+            categoryId?: string | null;
+            /** @example Smartphone */
+            name: string;
+            /** @example A great smartphone */
+            description?: string | null;
+            /** @example 1000000 */
+            price: string;
+            /** @example 100 */
+            stockQty: number;
+            /** @example true */
+            isActive: boolean;
+            /** @example 0 */
+            sortOrder: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            images: components["schemas"]["ProductImageDto"][];
+            category?: components["schemas"]["ProductCategorySummaryDto"] | null;
+            translations: components["schemas"]["ProductTranslationDto"][];
         };
         UpdateProductDto: {
             /** @example Smartphone */
@@ -1201,7 +1539,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["StoreListItemDto"][];
+                };
             };
         };
     };
@@ -1223,7 +1563,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["StoreDto"];
+                };
             };
             /** @description Store slug already exists */
             409: {
@@ -1250,7 +1592,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["StoreDetailDto"];
+                };
             };
             /** @description Forbidden - not owner */
             403: {
@@ -1288,7 +1632,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["StoreDto"];
+                };
             };
             /** @description Forbidden - not owner */
             403: {
@@ -1364,13 +1710,32 @@ export interface operations {
             };
         };
     };
+    TelegramController_disconnect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                storeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bot disconnected */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     TelegramController_webhook: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 storeId: string;
-                secret: string;
             };
             cookie?: never;
         };
@@ -1517,7 +1882,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CategoryListItemDto"][];
+                };
             };
         };
     };
@@ -1541,7 +1908,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CategoryDto"];
+                };
             };
         };
     };
@@ -1562,7 +1931,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CategoryDetailDto"];
+                };
             };
         };
     };
@@ -1583,7 +1954,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DeleteResponseDto"];
+                };
             };
         };
     };
@@ -1608,7 +1981,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CategoryDto"];
+                };
             };
         };
     };
@@ -1631,7 +2006,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ProductDto"][];
+                };
             };
         };
     };
@@ -1655,7 +2032,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ProductDto"];
+                };
             };
         };
     };
@@ -1676,7 +2055,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ProductDetailDto"];
+                };
             };
         };
     };
@@ -1697,7 +2078,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DeleteResponseDto"];
+                };
             };
         };
     };
@@ -1722,7 +2105,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ProductDto"];
+                };
             };
         };
     };

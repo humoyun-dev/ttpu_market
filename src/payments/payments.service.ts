@@ -1,8 +1,54 @@
 import { Injectable, NotFoundException, Logger, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PaymentProvider, PaymentStatus, OrderStatus } from '@prisma/client';
+import { PaymentProvider, PaymentStatus, OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { UpdatePaymentSettingsDto } from './dto';
+
+function redactPaymePayload(payload: any): Prisma.InputJsonValue {
+  const params = payload?.params ?? {};
+  const account = params?.account ?? {};
+
+  const safe = {
+    ...(typeof payload?.method === 'string' ? { method: payload.method } : {}),
+    ...(typeof payload?.id === 'string' || typeof payload?.id === 'number' ? { id: payload.id } : {}),
+    params: {
+      ...(typeof params?.id === 'string' || typeof params?.id === 'number' ? { id: params.id } : {}),
+      ...(typeof params?.time === 'number' ? { time: params.time } : {}),
+      ...(typeof params?.amount === 'number' || typeof params?.amount === 'string'
+        ? { amount: params.amount }
+        : {}),
+      account: {
+        ...(typeof account?.order_id === 'string' || typeof account?.order_id === 'number'
+          ? { order_id: account.order_id }
+          : {}),
+      },
+    },
+  };
+
+  return safe as Prisma.InputJsonValue;
+}
+
+function redactClickPayload(payload: any): Prisma.InputJsonValue {
+  const safe = {
+    ...(payload?.click_trans_id !== undefined ? { click_trans_id: String(payload.click_trans_id) } : {}),
+    ...(payload?.merchant_trans_id !== undefined
+      ? { merchant_trans_id: String(payload.merchant_trans_id) }
+      : {}),
+    ...(typeof payload?.amount === 'string' || typeof payload?.amount === 'number'
+      ? { amount: payload.amount }
+      : {}),
+    ...(typeof payload?.action === 'string' || typeof payload?.action === 'number'
+      ? { action: payload.action }
+      : {}),
+    ...(typeof payload?.error === 'string' || typeof payload?.error === 'number'
+      ? { error: payload.error }
+      : {}),
+    ...(typeof payload?.error_note === 'string' ? { error_note: payload.error_note } : {}),
+    ...(typeof payload?.sign_time === 'string' ? { sign_time: payload.sign_time } : {}),
+  };
+
+  return safe as Prisma.InputJsonValue;
+}
 
 @Injectable()
 export class PaymentsService {
@@ -54,8 +100,6 @@ export class PaymentsService {
   }
 
   async handlePaymeCallback(payload: any) {
-    this.logger.log('Payme callback received', JSON.stringify(payload));
-
     const strictMode = this.configService.get('PAYMENT_SIGNATURE_STRICT') === 'true';
 
     // Parse Payme payload
@@ -95,7 +139,7 @@ export class PaymentsService {
           provider: PaymentProvider.PAYME,
           amount: order.total,
           providerTransactionId,
-          rawPayload: payload,
+          rawPayload: redactPaymePayload(payload),
         },
       });
     }
@@ -104,7 +148,7 @@ export class PaymentsService {
     await this.prisma.paymentAttempt.create({
       data: {
         paymentId: payment.id,
-        rawPayload: payload,
+        rawPayload: redactPaymePayload(payload),
       },
     });
 
@@ -187,8 +231,6 @@ export class PaymentsService {
   }
 
   async handleClickCallback(payload: any) {
-    this.logger.log('Click callback received', JSON.stringify(payload));
-
     const strictMode = this.configService.get('PAYMENT_SIGNATURE_STRICT') === 'true';
 
     // Parse Click payload
@@ -228,9 +270,9 @@ export class PaymentsService {
         data: {
           orderId: order.id,
           provider: PaymentProvider.CLICK,
-          amount: BigInt(amount * 100), // Convert to tiyin
+          amount: order.total,
           providerTransactionId: String(click_trans_id),
-          rawPayload: payload,
+          rawPayload: redactClickPayload(payload),
         },
       });
     }
@@ -239,7 +281,7 @@ export class PaymentsService {
     await this.prisma.paymentAttempt.create({
       data: {
         paymentId: payment.id,
-        rawPayload: payload,
+        rawPayload: redactClickPayload(payload),
       },
     });
 

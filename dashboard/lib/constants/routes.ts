@@ -25,8 +25,10 @@ export const ROUTES = {
   },
   seller: {
     dashboard: "/seller/dashboard",
+    stores: "/seller/stores",
     storeSwitch: "/seller/store/switch",
     products: "/seller/products",
+    newProduct: "/seller/products/new",
     orders: "/seller/orders",
     customers: "/seller/customers",
     telegramSettings: "/seller/settings/telegram",
