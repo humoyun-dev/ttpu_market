@@ -3,47 +3,58 @@ import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
+function readEnv(name: string, fallback: string): string {
+  const value = process.env[name];
+  return typeof value === 'string' && value.length > 0 ? value : fallback;
+}
+
 async function main() {
   console.log('Seeding database...');
 
+  const adminEmail = readEnv('SEED_ADMIN_EMAIL', 'admin@example.com');
+  const adminPasswordPlain = readEnv('SEED_ADMIN_PASSWORD', 'Admin123!');
+  const sellerEmail = readEnv('SEED_SELLER_EMAIL', 'merchant@example.com');
+  const sellerPasswordPlain = readEnv('SEED_SELLER_PASSWORD', 'Merchant123!');
+  const sellerStoreSlug = readEnv('SEED_SELLER_STORE_SLUG', 'demo');
+
   // Create admin user
-  const adminPassword = await bcrypt.hash('Admin123!', 10);
+  const adminPassword = await bcrypt.hash(adminPasswordPlain, 10);
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@example.com' },
+    where: { email: adminEmail },
     update: {},
     create: {
-      email: 'admin@example.com',
+      email: adminEmail,
       password: adminPassword,
       fullName: 'Admin User',
       role: UserRole.ADMIN,
       isActive: true,
     },
   });
-  console.log('Created admin user:', admin.email);
+  console.log('Ensured platform admin user exists.');
 
-  // Create merchant user
-  const merchantPassword = await bcrypt.hash('Merchant123!', 10);
-  const merchant = await prisma.user.upsert({
-    where: { email: 'merchant@example.com' },
+  // Create seller user (merchant)
+  const sellerPassword = await bcrypt.hash(sellerPasswordPlain, 10);
+  const seller = await prisma.user.upsert({
+    where: { email: sellerEmail },
     update: {},
     create: {
-      email: 'merchant@example.com',
-      password: merchantPassword,
+      email: sellerEmail,
+      password: sellerPassword,
       fullName: 'Demo Merchant',
       role: UserRole.MERCHANT,
       isActive: true,
     },
   });
-  console.log('Created merchant user:', merchant.email);
+  console.log('Ensured seller (merchant) user exists.');
 
   // Create sample store for merchant
   const store = await prisma.store.upsert({
-    where: { slug: 'demo' },
+    where: { slug: sellerStoreSlug },
     update: {},
     create: {
-      ownerId: merchant.id,
+      ownerId: seller.id,
       name: 'Demo Store',
-      slug: 'demo',
+      slug: sellerStoreSlug,
       description: 'A demo e-commerce store',
       supportedLanguages: ['uz', 'ru'],
       defaultLanguage: 'uz',
