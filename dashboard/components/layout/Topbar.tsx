@@ -28,13 +28,14 @@ export function Topbar({ role }: { role: Role }) {
   const router = useRouter();
   const setActiveStoreId = useAuthStore((s) => s.setActiveStoreId);
   const [loggingOut, setLoggingOut] = React.useState(false);
+  const roleLabel = role === "admin" ? "Platform Admin" : "Merchant / Store Owner";
 
   return (
     <header className="flex h-14 items-center justify-between gap-4 border-b bg-background px-4">
       <Breadcrumbs />
       <div className="flex items-center gap-2">
         <div className="hidden text-xs text-muted-foreground sm:block">
-          Role: <span className="font-medium text-foreground">{role}</span>
+          Role: <span className="font-medium text-foreground">{roleLabel}</span>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

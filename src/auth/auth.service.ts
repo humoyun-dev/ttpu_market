@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { StoreStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { RegisterDto, LoginDto } from './dto';
+import { ApiUserRole, RegisterDto, LoginDto } from './dto';
 
 type StoreSummary = {
   id: string;
@@ -30,6 +30,10 @@ const PERMISSIONS_BY_ROLE: Record<UserRole, string[]> = {
     'settings:payments',
   ],
 };
+
+function toApiUserRole(role: UserRole): ApiUserRole {
+  return role === UserRole.ADMIN ? ApiUserRole.ADMIN : ApiUserRole.SELLER;
+}
 
 @Injectable()
 export class AuthService {
@@ -65,7 +69,7 @@ export class AuthService {
         id: user.id.toString(),
         email: user.email,
         fullName: user.fullName,
-        role: user.role,
+        role: toApiUserRole(user.role),
       },
     };
   }
@@ -97,7 +101,7 @@ export class AuthService {
         id: user.id.toString(),
         email: user.email,
         fullName: user.fullName,
-        role: user.role,
+        role: toApiUserRole(user.role),
       },
     };
   }
@@ -120,11 +124,16 @@ export class AuthService {
     }
 
     const permissions = PERMISSIONS_BY_ROLE[user.role] ?? [];
-    const stores = user.role === 'MERCHANT' ? await this.listAccessibleStores(userId) : [];
+    const stores =
+      user.role === UserRole.MERCHANT ? await this.listAccessibleStores(userId) : [];
 
     return {
-      ...user,
       id: user.id.toString(),
+      email: user.email,
+      fullName: user.fullName,
+      role: toApiUserRole(user.role),
+      isActive: user.isActive,
+      createdAt: user.createdAt,
       permissions,
       stores,
     };

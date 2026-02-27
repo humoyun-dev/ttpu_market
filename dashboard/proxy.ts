@@ -12,9 +12,10 @@ async function getMeFromBackend(request: NextRequest): Promise<ApiAuthMe | null>
   if (!cookieHeader) return null;
 
   try {
-    return await httpClient<ApiAuthMe>("/api/v1/auth/me", {
+    const session = await httpClient<ApiAuthMe>("/api/v1/auth/me", {
       headers: { cookie: cookieHeader },
     });
+    return session.isActive ? session : null;
   } catch {
     return null;
   }

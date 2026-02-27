@@ -38,6 +38,10 @@ export function LoginForm() {
       deleteCookie("ttpu_store_id");
 
       const role = toDashboardRole(session.user.role);
+      if (!role) {
+        setError("Unsupported account role.");
+        return;
+      }
       if (role === "admin") {
         router.push(ROUTES.admin.dashboard);
         return;

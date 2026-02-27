@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "TTPU Market Dashboard",
-  description: "Admin + Seller dashboard for TTPU Market",
+  description: "Platform Admin + Merchant dashboard for TTPU Market",
 };
 
 export default function RootLayout({

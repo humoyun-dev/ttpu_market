@@ -9,6 +9,8 @@ export type ApiLogout = components["schemas"]["LogoutDto"];
 export type ApiUserRole = components["schemas"]["AuthUserDto"]["role"];
 export type ApiRole = ApiUserRole | ApiAuthMe["role"];
 
-export function toDashboardRole(apiRole: ApiRole): Role {
-  return apiRole === "ADMIN" ? "admin" : "seller";
+export function toDashboardRole(apiRole: unknown): Role | null {
+  if (apiRole === "ADMIN") return "admin";
+  if (apiRole === "SELLER") return "seller";
+  return null;
 }

@@ -1,5 +1,5 @@
 import { env } from "@/lib/env/env";
-import { HttpError } from "@/lib/http/errors";
+import { type FieldErrors, HttpError } from "@/lib/http/errors";
 import { safeHeaders } from "@/lib/http/headers";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -10,6 +10,57 @@ type RequestOptions = {
   body?: unknown;
   signal?: AbortSignal;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function readMessage(value: unknown): string | null {
+  const direct = readNonEmptyString(value);
+  if (direct) return direct;
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((item) => readNonEmptyString(item))
+      .filter((item): item is string => Boolean(item));
+    return parts.length > 0 ? parts.join("; ") : null;
+  }
+  return null;
+}
+
+function readFieldErrors(value: unknown): FieldErrors | undefined {
+  if (!isRecord(value)) return undefined;
+  const out: FieldErrors = {};
+  for (const [key, val] of Object.entries(value)) {
+    const msg = readNonEmptyString(val);
+    if (msg) out[key] = msg;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function normalizeErrorPayload(payload: unknown): {
+  message?: string;
+  code?: string;
+  traceId?: string;
+  fieldErrors?: FieldErrors;
+} {
+  if (!isRecord(payload)) return {};
+
+  const message = readMessage(payload.message);
+  const code = readNonEmptyString(payload.code);
+  const traceId = readNonEmptyString(payload.traceId);
+  const fieldErrors = readFieldErrors(payload.fieldErrors);
+
+  return {
+    ...(message ? { message } : {}),
+    ...(code ? { code } : {}),
+    ...(traceId ? { traceId } : {}),
+    ...(fieldErrors ? { fieldErrors } : {}),
+  };
+}
 
 function getApiBaseUrl(): string {
   if (typeof window === "undefined") {
@@ -86,18 +137,15 @@ export async function httpClient<TResponse>(
 
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
+    let normalized: ReturnType<typeof normalizeErrorPayload> = {};
     try {
-      const data: unknown = await res.json();
-      if (typeof data === "object" && data && "message" in data) {
-        const maybeMessage = (data as { message?: unknown }).message;
-        if (typeof maybeMessage === "string" && maybeMessage.length > 0) {
-          message = maybeMessage;
-        }
-      }
+      const payload: unknown = await res.json();
+      normalized = normalizeErrorPayload(payload);
+      if (normalized.message) message = normalized.message;
     } catch {
-      // ignore
+      // ignore parse errors
     }
-    throw new HttpError(message, res.status);
+    throw new HttpError({ message, status: res.status, ...normalized });
   }
 
   if (res.status === 204) {

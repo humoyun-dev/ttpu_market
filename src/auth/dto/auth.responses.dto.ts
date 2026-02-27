@@ -1,5 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { StoreStatus, UserRole } from '@prisma/client';
+import { StoreStatus } from '@prisma/client';
+
+export enum ApiUserRole {
+  ADMIN = 'ADMIN',
+  SELLER = 'SELLER',
+}
 
 export class AuthUserDto {
   @ApiProperty({ example: '1' })
@@ -11,8 +16,8 @@ export class AuthUserDto {
   @ApiProperty({ example: 'John Doe' })
   fullName: string;
 
-  @ApiProperty({ enum: UserRole })
-  role: UserRole;
+  @ApiProperty({ enum: ApiUserRole })
+  role: ApiUserRole;
 }
 
 export class AuthSessionDto {
@@ -51,8 +56,8 @@ export class AuthMeDto {
   @ApiProperty({ example: 'John Doe' })
   fullName: string;
 
-  @ApiProperty({ enum: UserRole })
-  role: UserRole;
+  @ApiProperty({ enum: ApiUserRole })
+  role: ApiUserRole;
 
   @ApiProperty({ example: true })
   isActive: boolean;
@@ -80,4 +85,3 @@ export class LogoutDto {
   @ApiProperty({ example: true })
   ok: boolean;
 }
-

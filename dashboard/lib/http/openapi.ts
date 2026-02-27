@@ -689,7 +689,7 @@ export interface components {
             /** @example John Doe */
             fullName: string;
             /** @enum {string} */
-            role: "ADMIN" | "MERCHANT";
+            role: "ADMIN" | "SELLER";
         };
         AuthSessionDto: {
             /**
@@ -734,7 +734,7 @@ export interface components {
             /** @example John Doe */
             fullName: string;
             /** @enum {string} */
-            role: "ADMIN" | "MERCHANT";
+            role: "ADMIN" | "SELLER";
             /** @example true */
             isActive: boolean;
             /** Format: date-time */

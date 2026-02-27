@@ -20,9 +20,10 @@ export async function getMeServer(): Promise<ApiAuthMe | null> {
   if (!cookieHeader) return null;
 
   try {
-    return await httpClient<ApiAuthMe>("/api/v1/auth/me", {
+    const session = await httpClient<ApiAuthMe>("/api/v1/auth/me", {
       headers: { cookie: cookieHeader },
     });
+    return session.isActive ? session : null;
   } catch {
     return null;
   }
@@ -31,7 +32,7 @@ export async function getMeServer(): Promise<ApiAuthMe | null> {
 export async function requireRole(role: Role): Promise<ApiAuthMe> {
   const session = await getMeServer();
   const sessionRole = session ? toDashboardRole(session.role) : null;
-  if (!session || sessionRole !== role) {
+  if (!session || !sessionRole || sessionRole !== role) {
     redirect(ROUTES.login);
   }
   return session;
