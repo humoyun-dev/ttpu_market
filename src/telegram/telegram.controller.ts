@@ -11,10 +11,16 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { TelegramBotService } from './telegram-bot.service';
 import { TelegramWebhookService } from './telegram-webhook.service';
-import { ConnectTelegramDto } from './dto';
+import {
+  ConnectTelegramDto,
+  CustomerLanguageSelectDto,
+  CustomerRegistrationContactDto,
+  CustomerRegistrationStartDto,
+} from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators';
 import { StoresService } from '../stores/stores.service';
+import { TelegramRegistrationService } from './telegram-registration.service';
 
 function parseBigIntId(id: string): bigint {
   if (!/^\d+$/.test(id)) {
@@ -30,6 +36,7 @@ export class TelegramController {
     private readonly botService: TelegramBotService,
     private readonly webhookService: TelegramWebhookService,
     private readonly storesService: StoresService,
+    private readonly registrationService: TelegramRegistrationService,
   ) {}
 
   @Post('stores/:storeId/telegram/connect')
@@ -69,6 +76,37 @@ export class TelegramController {
     const storeIdBigInt = parseBigIntId(storeId);
     await this.storesService.verifyOwnership(storeIdBigInt, BigInt(user.id));
     return this.botService.disconnect(storeIdBigInt);
+  }
+
+  @Post('stores/:storeId/telegram/registration/start')
+  @ApiOperation({ summary: 'Start customer registration flow' })
+  async startRegistration(
+    @Param('storeId') storeId: string,
+    @Body() dto: CustomerRegistrationStartDto,
+  ) {
+    const storeIdBigInt = parseBigIntId(storeId);
+    return this.registrationService.start(storeIdBigInt, dto);
+  }
+
+  @Post('stores/:storeId/telegram/registration/language')
+  @ApiOperation({ summary: 'Set customer language for Telegram store bot' })
+  async setRegistrationLanguage(
+    @Param('storeId') storeId: string,
+    @Body() dto: CustomerLanguageSelectDto,
+  ) {
+    const storeIdBigInt = parseBigIntId(storeId);
+    return this.registrationService.selectLanguage(storeIdBigInt, dto);
+  }
+
+  @Post('stores/:storeId/telegram/registration/contact')
+  @ApiOperation({ summary: 'Complete customer contact registration for checkout' })
+  @ApiResponse({ status: 403, description: 'Contact ownership validation failed' })
+  async completeRegistrationContact(
+    @Param('storeId') storeId: string,
+    @Body() dto: CustomerRegistrationContactDto,
+  ) {
+    const storeIdBigInt = parseBigIntId(storeId);
+    return this.registrationService.completeContact(storeIdBigInt, dto);
   }
 
   @Post('telegram/webhook/:storeId/:secret')

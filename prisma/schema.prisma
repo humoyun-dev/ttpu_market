@@ -85,6 +85,12 @@ enum AutomationStatus {
   DELETED
 }
 
+enum BotLanguage {
+  uz
+  ru
+  en
+}
+
 // ==================== MODELS ====================
 
 model User {
@@ -183,7 +189,7 @@ model TelegramCustomer {
   firstName      String?
   lastName       String?
   phone          String?
-  languageCode   String    @default("uz")
+  languageCode   BotLanguage @default(uz)
   marketingOptIn Boolean   @default(true)
   isBlocked      Boolean   @default(false)
   lastActiveAt   DateTime?
@@ -202,6 +208,20 @@ model TelegramCustomer {
 
   @@unique([storeId, telegramUserId])
   @@map("telegram_customers")
+}
+
+model TelegramSeller {
+  id             BigInt      @id @default(autoincrement())
+  telegramUserId BigInt      @unique
+  phone          String
+  firstName      String
+  lastName       String?
+  username       String?
+  languageCode   BotLanguage @default(uz)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@map("telegram_sellers")
 }
 
 model TelegramSession {

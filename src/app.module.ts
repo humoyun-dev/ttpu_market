@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
+import { I18nModule } from './common/i18n';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { StoresModule } from './stores/stores.module';
@@ -36,6 +37,7 @@ import { SellerBotModule } from './seller-bot/seller-bot.module';
     }),
     PrismaModule,
     RedisModule,
+    I18nModule,
     HealthModule,
     AuthModule,
     StoresModule,

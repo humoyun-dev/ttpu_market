@@ -1,73 +1,12 @@
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { I18nService } from '../common/i18n';
 import { RedisService } from '../common/redis/redis.service';
 import { TelegramApiService } from './telegram-api.service';
 import { TelegramBotService } from './telegram-bot.service';
+import { TelegramRegistrationService } from './telegram-registration.service';
+import { CustomerBotState } from './fsm/customer-registration-state-machine';
 import { EventsService } from '../analytics/events.service';
-
-// Menu text constants
-const MENU_TEXT = {
-  uz: {
-    welcome: "Xush kelibsiz! Quyidagi menyu orqali xarid qiling:",
-    catalog: '🛍 Katalog',
-    cart: '🧺 Savat',
-    orders: '📦 Buyurtmalarim',
-    language: '🌐 Til',
-    categories: 'Kategoriyalar:',
-    products: 'Mahsulotlar:',
-    addToCart: '➕ Savatga',
-    back: '⬅️ Orqaga',
-    cartEmpty: "Savatingiz bo'sh",
-    cartItems: 'Savatingizda:',
-    total: 'Jami:',
-    checkout: '✅ Buyurtma berish',
-    clear: '🗑 Tozalash',
-    enterPhone: "Iltimos, telefon raqamingizni yuboring (kontakt orqali):",
-    enterAddress: 'Yetkazib berish manzilini kiriting:',
-    paymentMethod: "To'lov usulini tanlang:",
-    cash: '💵 Naqd',
-    orderCreated: '✅ Buyurtmangiz qabul qilindi!',
-    orderNo: 'Buyurtma raqami:',
-    noOrders: "Sizda hali buyurtmalar yo'q",
-    yourOrders: 'Sizning buyurtmalaringiz:',
-    selectLanguage: 'Tilni tanlang:',
-    languageChanged: 'Til muvaffaqiyatli almashtirildi!',
-    productAdded: 'Mahsulot savatga qoshildi!',
-    quantity: 'Soni:',
-    price: 'Narxi:',
-    remove: '❌ Olib tashlash',
-  },
-  ru: {
-    welcome: 'Добро пожаловать! Используйте меню для покупок:',
-    catalog: '🛍 Каталог',
-    cart: '🧺 Корзина',
-    orders: '📦 Мои заказы',
-    language: '🌐 Язык',
-    categories: 'Категории:',
-    products: 'Товары:',
-    addToCart: '➕ В корзину',
-    back: '⬅️ Назад',
-    cartEmpty: 'Ваша корзина пуста',
-    cartItems: 'В вашей корзине:',
-    total: 'Итого:',
-    checkout: '✅ Оформить заказ',
-    clear: '🗑 Очистить',
-    enterPhone: 'Пожалуйста, отправьте номер телефона (через контакт):',
-    enterAddress: 'Введите адрес доставки:',
-    paymentMethod: 'Выберите способ оплаты:',
-    cash: '💵 Наличные',
-    orderCreated: '✅ Ваш заказ принят!',
-    orderNo: 'Номер заказа:',
-    noOrders: 'У вас пока нет заказов',
-    yourOrders: 'Ваши заказы:',
-    selectLanguage: 'Выберите язык:',
-    languageChanged: 'Язык успешно изменен!',
-    productAdded: 'Товар добавлен в корзину!',
-    quantity: 'Количество:',
-    price: 'Цена:',
-    remove: '❌ Удалить',
-  },
-};
 
 @Injectable()
 export class TelegramWebhookService {
@@ -78,6 +17,8 @@ export class TelegramWebhookService {
     private readonly redis: RedisService,
     private readonly telegramApi: TelegramApiService,
     private readonly botService: TelegramBotService,
+    private readonly registrationService: TelegramRegistrationService,
+    private readonly i18nService: I18nService,
     private readonly eventsService: EventsService,
   ) {}
 
@@ -114,64 +55,146 @@ export class TelegramWebhookService {
   }
 
   private async handleMessage(storeId: bigint, token: string, message: any): Promise<void> {
-    const chatId = message.chat.id;
-    const telegramUserId = message.from.id;
-    const text = message.text || '';
-
-    // Get or create customer
-    const customer = await this.getOrCreateCustomer(storeId, message.from);
-    const lang = customer.languageCode as 'uz' | 'ru';
-    const t = MENU_TEXT[lang] || MENU_TEXT.uz;
-
-    // Get session
-    const session = await this.getOrCreateSession(storeId, customer.id);
-
-    // Handle contact sharing (phone)
-    if (message.contact) {
-      await this.handleContactShared(storeId, token, chatId, customer, session, message.contact);
+    const chatId = message.chat?.id;
+    const from = message.from;
+    if (!chatId || !from?.id) {
       return;
     }
 
-    // Handle based on text command or session state
+    const text = typeof message.text === 'string' ? message.text.trim() : '';
+    const startState = await this.registrationService.start(storeId, {
+      telegramUserId: String(from.id),
+      firstName: from.first_name || 'Customer',
+      lastName: from.last_name,
+      username: from.username,
+    });
+    const language = this.resolveLang(startState.languageCode ?? from.language_code);
+
     if (text === '/start') {
-      await this.eventsService.track(storeId, customer.telegramUserId, 'start', {});
-      await this.showMainMenu(token, chatId, t);
-      await this.updateSessionState(session.id, 'idle', null);
-    } else if (text === t.catalog || text === MENU_TEXT.uz.catalog || text === MENU_TEXT.ru.catalog) {
-      await this.eventsService.track(storeId, customer.telegramUserId, 'view_catalog', {});
-      await this.showCategories(storeId, token, chatId, lang);
-    } else if (text === t.cart || text === MENU_TEXT.uz.cart || text === MENU_TEXT.ru.cart) {
-      await this.showCart(storeId, token, chatId, customer, lang);
-    } else if (text === t.orders || text === MENU_TEXT.uz.orders || text === MENU_TEXT.ru.orders) {
-      await this.showOrders(storeId, token, chatId, customer, lang);
-    } else if (text === t.language || text === MENU_TEXT.uz.language || text === MENU_TEXT.ru.language) {
-      await this.showLanguageSelection(token, chatId);
-    } else if (session.state === 'awaiting_address') {
-      await this.handleAddressInput(storeId, token, chatId, customer, session, text, lang);
-    } else {
-      // Default: show main menu
-      await this.showMainMenu(token, chatId, t);
+      await this.eventsService.track(storeId, BigInt(from.id), 'start', {});
+      if (startState.state === CustomerBotState.IDLE) {
+        await this.showMainMenu(token, chatId, language);
+      } else {
+        await this.showLanguageSelection(token, chatId, language);
+      }
+      return;
     }
+
+    if (message.contact) {
+      try {
+        await this.registrationService.completeContact(storeId, {
+          telegramUserId: String(from.id),
+          contactUserId: String(message.contact.user_id ?? ''),
+          phone: message.contact.phone_number ?? '',
+        });
+
+        await this.telegramApi.sendMessage(
+          token,
+          chatId,
+          this.t('ecommerce.checkout.enterAddress', language),
+          { replyMarkup: { remove_keyboard: true } },
+        );
+      } catch {
+        await this.telegramApi.sendMessage(
+          token,
+          chatId,
+          this.t('common.errors.invalidContactOwner', language),
+        );
+        await this.sendCheckoutContactRequest(token, chatId, language);
+      }
+      return;
+    }
+
+    const context = await this.registrationService.getContext(storeId, String(from.id));
+
+    if (context.session.state === CustomerBotState.AWAITING_ADDRESS && text.length > 0) {
+      await this.handleAddressInput(
+        storeId,
+        token,
+        chatId,
+        context.customer,
+        context.session,
+        text,
+        context.customer.languageCode,
+      );
+      return;
+    }
+
+    if (context.session.state !== CustomerBotState.IDLE) {
+      await this.handleIncompleteRegistration(
+        token,
+        chatId,
+        context.customer.languageCode,
+        context.session.state,
+      );
+      return;
+    }
+
+    await this.showMainMenu(token, chatId, context.customer.languageCode);
   }
 
   private async handleCallbackQuery(storeId: bigint, token: string, callbackQuery: any): Promise<void> {
-    const chatId = callbackQuery.message.chat.id;
-    const messageId = callbackQuery.message.message_id;
+    const chatId = callbackQuery.message?.chat?.id;
     const data = callbackQuery.data;
-    const telegramUserId = callbackQuery.from.id;
+    const telegramUserId = callbackQuery.from?.id;
+    if (!chatId || !telegramUserId || typeof data !== 'string') {
+      return;
+    }
 
     // Acknowledge callback
     await this.telegramApi.answerCallbackQuery(token, callbackQuery.id);
 
-    // Get customer
-    const customer = await this.getOrCreateCustomer(storeId, callbackQuery.from);
-    const lang = customer.languageCode as 'uz' | 'ru';
-    const t = MENU_TEXT[lang] || MENU_TEXT.uz;
+    const startState = await this.registrationService.start(storeId, {
+      telegramUserId: String(telegramUserId),
+      firstName: callbackQuery.from?.first_name || 'Customer',
+      lastName: callbackQuery.from?.last_name,
+      username: callbackQuery.from?.username,
+    });
+
+    const fallbackLang = this.resolveLang(startState.languageCode ?? callbackQuery.from?.language_code);
 
     // Parse callback data
     const [action, ...params] = data.split(':');
 
+    if (action === 'lang') {
+      const nextLanguage = this.resolveLang(params[0], fallbackLang);
+      await this.registrationService.selectLanguage(storeId, {
+        telegramUserId: String(telegramUserId),
+        languageCode: nextLanguage,
+      });
+      await this.telegramApi.sendMessage(
+        token,
+        chatId,
+        this.t('ecommerce.info.languageUpdated', nextLanguage),
+      );
+      await this.showMainMenu(token, chatId, nextLanguage);
+      return;
+    }
+
+    const context = await this.registrationService.getContext(storeId, String(telegramUserId));
+    const lang = context.customer.languageCode;
+    if (context.session.state !== CustomerBotState.IDLE) {
+      await this.handleIncompleteRegistration(token, chatId, lang, context.session.state);
+      return;
+    }
+
     switch (action) {
+      case 'main': {
+        const target = params[0];
+        if (target === 'catalog') {
+          await this.eventsService.track(storeId, context.customer.telegramUserId, 'view_catalog', {});
+          await this.showCategories(storeId, token, chatId, lang);
+        } else if (target === 'cart') {
+          await this.showCart(storeId, token, chatId, context.customer, lang);
+        } else if (target === 'orders') {
+          await this.showOrders(storeId, token, chatId, context.customer, lang);
+        } else if (target === 'language') {
+          await this.showLanguageSelection(token, chatId, lang);
+        } else {
+          await this.showMainMenu(token, chatId, lang);
+        }
+        break;
+      }
       case 'cat':
         await this.showCategoryProducts(storeId, token, chatId, BigInt(params[0]), lang);
         break;
@@ -179,129 +202,139 @@ export class TelegramWebhookService {
         await this.showProductDetail(storeId, token, chatId, BigInt(params[0]), lang);
         break;
       case 'add':
-        await this.addToCart(storeId, token, chatId, customer, BigInt(params[0]), lang);
+        await this.addToCart(storeId, token, chatId, context.customer, BigInt(params[0]), lang);
         break;
       case 'remove':
-        await this.removeFromCart(storeId, token, chatId, customer, BigInt(params[0]), lang);
+        await this.removeFromCart(storeId, token, chatId, context.customer, BigInt(params[0]), lang);
         break;
       case 'checkout':
-        await this.startCheckout(storeId, token, chatId, customer, lang);
+        await this.startCheckout(storeId, token, chatId, context.customer, lang);
         break;
       case 'clear':
-        await this.clearCart(storeId, token, chatId, customer, lang);
+        await this.clearCart(storeId, token, chatId, context.customer, lang);
         break;
       case 'pay':
-        await this.handlePaymentChoice(storeId, token, chatId, customer, params[0], lang);
-        break;
-      case 'lang':
-        await this.changeLanguage(storeId, token, chatId, customer, params[0]);
+        await this.handlePaymentChoice(storeId, token, chatId, context.customer, params[0], lang);
         break;
       case 'back':
         await this.showCategories(storeId, token, chatId, lang);
         break;
-      case 'main':
-        await this.showMainMenu(token, chatId, t);
+      case 'menu':
+        await this.showMainMenu(token, chatId, lang);
         break;
+      default:
+        await this.showMainMenu(token, chatId, lang);
     }
   }
 
-  private async getOrCreateCustomer(storeId: bigint, from: any) {
-    let customer = await this.prisma.telegramCustomer.findUnique({
-      where: {
-        storeId_telegramUserId: {
-          storeId,
-          telegramUserId: BigInt(from.id),
-        },
-      },
-    });
-
-    if (!customer) {
-      customer = await this.prisma.telegramCustomer.create({
-        data: {
-          storeId,
-          telegramUserId: BigInt(from.id),
-          username: from.username,
-          firstName: from.first_name,
-          lastName: from.last_name,
-          languageCode: from.language_code === 'ru' ? 'ru' : 'uz',
-          lastActiveAt: new Date(),
-        },
-      });
-    } else {
-      await this.prisma.telegramCustomer.update({
-        where: { id: customer.id },
-        data: { lastActiveAt: new Date() },
-      });
-    }
-
-    return customer;
-  }
-
-  private async getOrCreateSession(storeId: bigint, customerId: bigint) {
-    let session = await this.prisma.telegramSession.findUnique({
-      where: {
-        storeId_telegramCustomerId: {
-          storeId,
-          telegramCustomerId: customerId,
-        },
-      },
-    });
-
-    if (!session) {
-      session = await this.prisma.telegramSession.create({
-        data: {
-          storeId,
-          telegramCustomerId: customerId,
-          state: 'idle',
-        },
-      });
-    }
-
-    return session;
-  }
-
-  private async updateSessionState(sessionId: bigint, state: string, stateData: any) {
-    await this.prisma.telegramSession.update({
-      where: { id: sessionId },
-      data: { state, stateData },
-    });
-  }
-
-  private async showMainMenu(token: string, chatId: number, t: typeof MENU_TEXT.uz) {
+  private async showMainMenu(token: string, chatId: number, languageCode: string) {
     const keyboard = {
-      keyboard: [
-        [{ text: t.catalog }, { text: t.cart }],
-        [{ text: t.orders }, { text: t.language }],
+      inline_keyboard: [
+        [
+          { text: this.t('ecommerce.menu.catalog', languageCode), callback_data: 'main:catalog' },
+          { text: this.t('ecommerce.menu.cart', languageCode), callback_data: 'main:cart' },
+        ],
+        [
+          { text: this.t('ecommerce.menu.orders', languageCode), callback_data: 'main:orders' },
+          { text: this.t('ecommerce.menu.language', languageCode), callback_data: 'main:language' },
+        ],
       ],
-      resize_keyboard: true,
     };
 
-    await this.telegramApi.sendMessage(token, chatId, t.welcome, {
+    await this.telegramApi.sendMessage(token, chatId, this.t('ecommerce.menu.title', languageCode), {
       replyMarkup: keyboard,
     });
   }
 
+  private async handleIncompleteRegistration(
+    token: string,
+    chatId: number,
+    languageCode: string,
+    state: CustomerBotState,
+  ) {
+    if (state === CustomerBotState.LANG_SELECT || state === CustomerBotState.NEW) {
+      await this.showLanguageSelection(token, chatId, languageCode);
+      return;
+    }
+
+    if (state === CustomerBotState.AWAITING_CONTACT) {
+      await this.sendCheckoutContactRequest(token, chatId, languageCode);
+      return;
+    }
+
+    if (state === CustomerBotState.AWAITING_ADDRESS) {
+      await this.telegramApi.sendMessage(
+        token,
+        chatId,
+        this.t('ecommerce.checkout.enterAddress', languageCode),
+      );
+      return;
+    }
+
+    if (state === CustomerBotState.AWAITING_PAYMENT) {
+      await this.telegramApi.sendMessage(
+        token,
+        chatId,
+        this.t('ecommerce.checkout.paymentMethod', languageCode),
+        {
+          replyMarkup: {
+            inline_keyboard: [
+              [{ text: this.t('ecommerce.checkout.cash', languageCode), callback_data: 'pay:cash' }],
+            ],
+          },
+        },
+      );
+      return;
+    }
+
+    await this.telegramApi.sendMessage(
+      token,
+      chatId,
+      this.t('common.errors.registrationRequired', languageCode),
+    );
+  }
+
+  private async sendCheckoutContactRequest(token: string, chatId: number, languageCode: string) {
+    const keyboard = {
+      keyboard: [
+        [
+          {
+            text: this.t('common.actions.shareContact', languageCode),
+            request_contact: true,
+          },
+        ],
+      ],
+      resize_keyboard: true,
+      one_time_keyboard: true,
+    };
+
+    await this.telegramApi.sendMessage(
+      token,
+      chatId,
+      this.t('ecommerce.checkout.contactRequired', languageCode),
+      { replyMarkup: keyboard },
+    );
+  }
+
   private async showCategories(storeId: bigint, token: string, chatId: number, lang: string) {
-    const t = MENU_TEXT[lang as 'uz' | 'ru'] || MENU_TEXT.uz;
-    
     const categories = await this.prisma.category.findMany({
       where: { storeId, isActive: true, parentId: null },
       orderBy: { sortOrder: 'asc' },
     });
 
     if (categories.length === 0) {
-      await this.telegramApi.sendMessage(token, chatId, 'No categories available');
+      await this.telegramApi.sendMessage(token, chatId, this.t('ecommerce.product.noCategories', lang));
       return;
     }
 
-    const buttons = categories.map((cat) => [
+    const buttons = categories.map((category) => [
       {
-        text: lang === 'ru' && cat.nameRu ? cat.nameRu : cat.name,
-        callback_data: `cat:${cat.id}`,
+        text: lang === 'ru' && category.nameRu ? category.nameRu : category.name,
+        callback_data: `cat:${category.id}`,
       },
     ]);
 
-    await this.telegramApi.sendMessage(token, chatId, t.categories, {
+    await this.telegramApi.sendMessage(token, chatId, this.t('ecommerce.menu.categories', lang), {
       replyMarkup: { inline_keyboard: buttons },
     });
   }
@@ -313,31 +346,28 @@ export class TelegramWebhookService {
     categoryId: bigint,
     lang: string,
   ) {
-    const t = MENU_TEXT[lang as 'uz' | 'ru'] || MENU_TEXT.uz;
-
     const products = await this.prisma.product.findMany({
       where: { storeId, categoryId, isActive: true },
       orderBy: { sortOrder: 'asc' },
     });
 
     if (products.length === 0) {
-      const buttons = [[{ text: t.back, callback_data: 'back' }]];
-      await this.telegramApi.sendMessage(token, chatId, 'No products in this category', {
+      const buttons = [[{ text: this.t('ecommerce.menu.back', lang), callback_data: 'back' }]];
+      await this.telegramApi.sendMessage(token, chatId, this.t('ecommerce.product.noProducts', lang), {
         replyMarkup: { inline_keyboard: buttons },
       });
       return;
     }
 
-    const buttons = products.map((prod) => [
+    const buttons = products.map((product) => [
       {
-        text: `${prod.name} - ${this.formatPrice(prod.price)}`,
-        callback_data: `prod:${prod.id}`,
+        text: `${product.name} - ${this.formatPrice(product.price)}`,
+        callback_data: `prod:${product.id}`,
       },
     ]);
+    buttons.push([{ text: this.t('ecommerce.menu.back', lang), callback_data: 'back' }]);
 
-    buttons.push([{ text: t.back, callback_data: 'back' }]);
-
-    await this.telegramApi.sendMessage(token, chatId, t.products, {
+    await this.telegramApi.sendMessage(token, chatId, this.t('ecommerce.menu.products', lang), {
       replyMarkup: { inline_keyboard: buttons },
     });
   }
@@ -349,23 +379,24 @@ export class TelegramWebhookService {
     productId: bigint,
     lang: string,
   ) {
-    const t = MENU_TEXT[lang as 'uz' | 'ru'] || MENU_TEXT.uz;
-
     const product = await this.prisma.product.findFirst({
       where: { id: productId, storeId },
       include: { images: { orderBy: { sortOrder: 'asc' }, take: 1 } },
     });
 
     if (!product) {
-      await this.telegramApi.sendMessage(token, chatId, 'Product not found');
+      await this.telegramApi.sendMessage(token, chatId, this.t('ecommerce.product.notFound', lang));
       return;
     }
 
-    const text = `*${product.name}*\n\n${product.description || ''}\n\n${t.price} ${this.formatPrice(product.price)}`;
+    const text = `*${product.name}*\n\n${product.description || ''}\n\n${this.t(
+      'ecommerce.checkout.price',
+      lang,
+    )} ${this.formatPrice(product.price)}`;
 
     const buttons = [
-      [{ text: t.addToCart, callback_data: `add:${product.id}` }],
-      [{ text: t.back, callback_data: `cat:${product.categoryId}` }],
+      [{ text: this.t('ecommerce.checkout.addToCart', lang), callback_data: `add:${product.id}` }],
+      [{ text: this.t('ecommerce.menu.back', lang), callback_data: `cat:${product.categoryId}` }],
     ];
 
     if (product.images.length > 0) {
@@ -374,25 +405,23 @@ export class TelegramWebhookService {
         parseMode: 'Markdown',
         replyMarkup: { inline_keyboard: buttons },
       });
-    } else {
-      await this.telegramApi.sendMessage(token, chatId, text, {
-        parseMode: 'Markdown',
-        replyMarkup: { inline_keyboard: buttons },
-      });
+      return;
     }
+
+    await this.telegramApi.sendMessage(token, chatId, text, {
+      parseMode: 'Markdown',
+      replyMarkup: { inline_keyboard: buttons },
+    });
   }
 
   private async addToCart(
     storeId: bigint,
     token: string,
     chatId: number,
-    customer: any,
+    customer: { id: bigint; telegramUserId: bigint },
     productId: bigint,
     lang: string,
   ) {
-    const t = MENU_TEXT[lang as 'uz' | 'ru'] || MENU_TEXT.uz;
-
-    // Get or create cart
     let cart = await this.prisma.cart.findUnique({
       where: {
         storeId_telegramCustomerId: {
@@ -411,7 +440,6 @@ export class TelegramWebhookService {
       });
     }
 
-    // Check if item exists
     const existingItem = await this.prisma.cartItem.findUnique({
       where: {
         cartId_productId: {
@@ -436,20 +464,20 @@ export class TelegramWebhookService {
       });
     }
 
-    await this.eventsService.track(storeId, customer.telegramUserId, 'add_to_cart', { productId: productId.toString() });
+    await this.eventsService.track(storeId, customer.telegramUserId, 'add_to_cart', {
+      productId: productId.toString(),
+    });
 
-    await this.telegramApi.sendMessage(token, chatId, t.productAdded);
+    await this.telegramApi.sendMessage(token, chatId, this.t('ecommerce.product.added', lang));
   }
 
   private async showCart(
     storeId: bigint,
     token: string,
     chatId: number,
-    customer: any,
+    customer: { id: bigint; telegramUserId: bigint },
     lang: string,
   ) {
-    const t = MENU_TEXT[lang as 'uz' | 'ru'] || MENU_TEXT.uz;
-
     const cart = await this.prisma.cart.findUnique({
       where: {
         storeId_telegramCustomerId: {
@@ -465,29 +493,30 @@ export class TelegramWebhookService {
     });
 
     if (!cart || cart.items.length === 0) {
-      await this.telegramApi.sendMessage(token, chatId, t.cartEmpty);
+      await this.telegramApi.sendMessage(token, chatId, this.t('ecommerce.checkout.cartEmpty', lang));
       return;
     }
 
-    let text = `${t.cartItems}\n\n`;
+    let text = `${this.t('ecommerce.checkout.cartItems', lang)}\n\n`;
     let total = BigInt(0);
-
-    const buttons: any[][] = [];
+    const buttons: Array<Array<{ text: string; callback_data: string }>> = [];
 
     for (const item of cart.items) {
       const itemTotal = item.product.price * BigInt(item.quantity);
       total += itemTotal;
-      text += `${item.product.name}\n${t.quantity} ${item.quantity} x ${this.formatPrice(item.product.price)} = ${this.formatPrice(itemTotal)}\n\n`;
-      
+      text += `${item.product.name}\n${this.t('ecommerce.checkout.quantity', lang)} ${item.quantity} x ${this.formatPrice(item.product.price)} = ${this.formatPrice(itemTotal)}\n\n`;
       buttons.push([
-        { text: `${t.remove} ${item.product.name}`, callback_data: `remove:${item.product.id}` },
+        {
+          text: `${this.t('ecommerce.checkout.remove', lang)} ${item.product.name}`,
+          callback_data: `remove:${item.product.id}`,
+        },
       ]);
     }
 
-    text += `\n${t.total} ${this.formatPrice(total)}`;
+    text += `\n${this.t('ecommerce.checkout.total', lang)} ${this.formatPrice(total)}`;
 
-    buttons.push([{ text: t.checkout, callback_data: 'checkout' }]);
-    buttons.push([{ text: t.clear, callback_data: 'clear' }]);
+    buttons.push([{ text: this.t('ecommerce.checkout.checkout', lang), callback_data: 'checkout' }]);
+    buttons.push([{ text: this.t('ecommerce.checkout.clear', lang), callback_data: 'clear' }]);
 
     await this.telegramApi.sendMessage(token, chatId, text, {
       replyMarkup: { inline_keyboard: buttons },
@@ -498,7 +527,7 @@ export class TelegramWebhookService {
     storeId: bigint,
     token: string,
     chatId: number,
-    customer: any,
+    customer: { id: bigint; telegramUserId: bigint },
     productId: bigint,
     lang: string,
   ) {
@@ -524,11 +553,9 @@ export class TelegramWebhookService {
     storeId: bigint,
     token: string,
     chatId: number,
-    customer: any,
+    customer: { id: bigint; telegramUserId: bigint },
     lang: string,
   ) {
-    const t = MENU_TEXT[lang as 'uz' | 'ru'] || MENU_TEXT.uz;
-
     await this.prisma.cartItem.deleteMany({
       where: {
         cart: {
@@ -538,87 +565,49 @@ export class TelegramWebhookService {
       },
     });
 
-    await this.telegramApi.sendMessage(token, chatId, t.cartEmpty);
+    await this.telegramApi.sendMessage(token, chatId, this.t('ecommerce.checkout.cartEmpty', lang));
   }
 
   private async startCheckout(
     storeId: bigint,
     token: string,
     chatId: number,
-    customer: any,
+    customer: { id: bigint; telegramUserId: bigint; languageCode: string },
     lang: string,
   ) {
-    const t = MENU_TEXT[lang as 'uz' | 'ru'] || MENU_TEXT.uz;
-
     await this.eventsService.track(storeId, customer.telegramUserId, 'checkout_started', {});
 
-    // Check if phone is missing
-    if (!customer.phone) {
-      const session = await this.getOrCreateSession(storeId, customer.id);
-      await this.updateSessionState(session.id, 'awaiting_phone', null);
+    const checkoutState = await this.registrationService.requireContactForCheckout(
+      storeId,
+      customer.telegramUserId.toString(),
+    );
 
-      const keyboard = {
-        keyboard: [[{ text: '📱 Share Contact', request_contact: true }]],
-        resize_keyboard: true,
-        one_time_keyboard: true,
-      };
-
-      await this.telegramApi.sendMessage(token, chatId, t.enterPhone, {
-        replyMarkup: keyboard,
-      });
+    if (checkoutState.state === CustomerBotState.AWAITING_CONTACT) {
+      await this.sendCheckoutContactRequest(token, chatId, lang);
       return;
     }
 
-    // Ask for address
-    const session = await this.getOrCreateSession(storeId, customer.id);
-    await this.updateSessionState(session.id, 'awaiting_address', null);
-
-    await this.telegramApi.sendMessage(token, chatId, t.enterAddress);
-  }
-
-  private async handleContactShared(
-    storeId: bigint,
-    token: string,
-    chatId: number,
-    customer: any,
-    session: any,
-    contact: any,
-  ) {
-    const lang = customer.languageCode as 'uz' | 'ru';
-    const t = MENU_TEXT[lang] || MENU_TEXT.uz;
-
-    // Update customer phone
-    await this.prisma.telegramCustomer.update({
-      where: { id: customer.id },
-      data: { phone: contact.phone_number },
-    });
-
-    // Ask for address
-    await this.updateSessionState(session.id, 'awaiting_address', null);
-
-    await this.telegramApi.sendMessage(token, chatId, t.enterAddress, {
-      replyMarkup: { remove_keyboard: true },
-    });
+    await this.telegramApi.sendMessage(token, chatId, this.t('ecommerce.checkout.enterAddress', lang));
   }
 
   private async handleAddressInput(
     storeId: bigint,
     token: string,
     chatId: number,
-    customer: any,
-    session: any,
+    customer: { telegramUserId: bigint; languageCode: string },
+    session: { state: CustomerBotState },
     address: string,
     lang: string,
   ) {
-    const t = MENU_TEXT[lang as 'uz' | 'ru'] || MENU_TEXT.uz;
+    if (session.state !== CustomerBotState.AWAITING_ADDRESS) {
+      await this.handleIncompleteRegistration(token, chatId, lang, session.state);
+      return;
+    }
 
-    // Store address in session
-    await this.updateSessionState(session.id, 'awaiting_payment', { address });
+    await this.registrationService.setAwaitingPayment(storeId, customer.telegramUserId.toString(), address);
+    const buttons = [[{ text: this.t('ecommerce.checkout.cash', lang), callback_data: 'pay:cash' }]];
 
-    // Show payment options
-    const buttons = [[{ text: t.cash, callback_data: 'pay:cash' }]];
-
-    await this.telegramApi.sendMessage(token, chatId, t.paymentMethod, {
+    await this.telegramApi.sendMessage(token, chatId, this.t('ecommerce.checkout.paymentMethod', lang), {
       replyMarkup: { inline_keyboard: buttons },
     });
   }
@@ -627,18 +616,18 @@ export class TelegramWebhookService {
     storeId: bigint,
     token: string,
     chatId: number,
-    customer: any,
+    customer: { id: bigint; telegramUserId: bigint; languageCode: string },
     paymentMethod: string,
     lang: string,
   ) {
-    const t = MENU_TEXT[lang as 'uz' | 'ru'] || MENU_TEXT.uz;
+    const context = await this.registrationService.getContext(storeId, customer.telegramUserId.toString());
+    if (context.session.state !== CustomerBotState.AWAITING_PAYMENT) {
+      await this.handleIncompleteRegistration(token, chatId, lang, context.session.state);
+      return;
+    }
 
-    // Get session data
-    const session = await this.getOrCreateSession(storeId, customer.id);
-    const stateData = session.stateData as any;
-    const address = stateData?.address || '';
+    const address = context.session.stateData?.address || '';
 
-    // Get cart
     const cart = await this.prisma.cart.findUnique({
       where: {
         storeId_telegramCustomerId: {
@@ -652,25 +641,20 @@ export class TelegramWebhookService {
     });
 
     if (!cart || cart.items.length === 0) {
-      await this.telegramApi.sendMessage(token, chatId, t.cartEmpty);
+      await this.telegramApi.sendMessage(token, chatId, this.t('ecommerce.checkout.cartEmpty', lang));
       return;
     }
 
-    // Calculate total
     let subtotal = BigInt(0);
     for (const item of cart.items) {
       subtotal += item.product.price * BigInt(item.quantity);
     }
 
-    // Generate order number
     const orderNo = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-    // Get customer with fresh data
     const freshCustomer = await this.prisma.telegramCustomer.findUnique({
       where: { id: customer.id },
     });
 
-    // Create order
     const order = await this.prisma.order.create({
       data: {
         storeId,
@@ -698,46 +682,42 @@ export class TelegramWebhookService {
       },
     });
 
-    // Create payment record
     await this.prisma.payment.create({
       data: {
         orderId: order.id,
         provider: paymentMethod === 'cash' ? 'CASH' : 'PAYME',
         amount: subtotal,
-        status: paymentMethod === 'cash' ? 'PENDING' : 'PENDING',
+        status: 'PENDING',
       },
     });
 
-    // Clear cart
     await this.prisma.cartItem.deleteMany({
       where: { cartId: cart.id },
     });
 
-    // Reset session
-    await this.updateSessionState(session.id, 'idle', null);
+    await this.registrationService.setIdle(storeId, customer.telegramUserId.toString());
 
-    // Track event
     await this.eventsService.track(storeId, customer.telegramUserId, 'order_created', {
       orderId: order.id.toString(),
       total: subtotal.toString(),
     });
 
-    // Send confirmation
-    const confirmationText = `${t.orderCreated}\n\n${t.orderNo} ${orderNo}\n${t.total} ${this.formatPrice(subtotal)}`;
+    const confirmationText = `${this.t('ecommerce.checkout.orderCreated', lang)}\n\n${this.t(
+      'ecommerce.checkout.orderNo',
+      lang,
+    )} ${orderNo}\n${this.t('ecommerce.checkout.total', lang)} ${this.formatPrice(subtotal)}`;
 
     await this.telegramApi.sendMessage(token, chatId, confirmationText);
-    await this.showMainMenu(token, chatId, t);
+    await this.showMainMenu(token, chatId, lang);
   }
 
   private async showOrders(
     storeId: bigint,
     token: string,
     chatId: number,
-    customer: any,
+    customer: { id: bigint },
     lang: string,
   ) {
-    const t = MENU_TEXT[lang as 'uz' | 'ru'] || MENU_TEXT.uz;
-
     const orders = await this.prisma.order.findMany({
       where: {
         storeId,
@@ -748,48 +728,47 @@ export class TelegramWebhookService {
     });
 
     if (orders.length === 0) {
-      await this.telegramApi.sendMessage(token, chatId, t.noOrders);
+      await this.telegramApi.sendMessage(token, chatId, this.t('ecommerce.orders.noOrders', lang));
       return;
     }
 
-    let text = `${t.yourOrders}\n\n`;
-
+    let text = `${this.t('ecommerce.orders.yourOrders', lang)}\n\n`;
     for (const order of orders) {
       text += `#${order.orderNo}\n`;
-      text += `${t.total} ${this.formatPrice(order.total)}\n`;
-      text += `Status: ${order.status}\n`;
+      text += `${this.t('ecommerce.checkout.total', lang)} ${this.formatPrice(order.total)}\n`;
+      text += `${this.t('ecommerce.orders.status', lang)}: ${order.status}\n`;
       text += `📅 ${order.createdAt.toLocaleDateString()}\n\n`;
     }
 
     await this.telegramApi.sendMessage(token, chatId, text);
   }
 
-  private async showLanguageSelection(token: string, chatId: number) {
+  private async showLanguageSelection(token: string, chatId: number, languageCode: string) {
     const buttons = [
-      [{ text: "🇺🇿 O'zbek", callback_data: 'lang:uz' }],
-      [{ text: '🇷🇺 Русский', callback_data: 'lang:ru' }],
+      [
+        { text: this.t('common.language.uz', languageCode), callback_data: 'lang:uz' },
+        { text: this.t('common.language.ru', languageCode), callback_data: 'lang:ru' },
+        { text: this.t('common.language.en', languageCode), callback_data: 'lang:en' },
+      ],
     ];
 
-    await this.telegramApi.sendMessage(token, chatId, 'Tilni tanlang / Выберите язык:', {
-      replyMarkup: { inline_keyboard: buttons },
-    });
+    await this.telegramApi.sendMessage(
+      token,
+      chatId,
+      this.t('ecommerce.registration.selectLanguage', languageCode),
+      {
+        replyMarkup: { inline_keyboard: buttons },
+      },
+    );
   }
 
-  private async changeLanguage(
-    storeId: bigint,
-    token: string,
-    chatId: number,
-    customer: any,
-    newLang: string,
-  ) {
-    await this.prisma.telegramCustomer.update({
-      where: { id: customer.id },
-      data: { languageCode: newLang },
-    });
+  private resolveLang(preferred?: string, fallback?: string): 'uz' | 'ru' | 'en' {
+    const fallbackLang = this.i18nService.resolveLanguage(fallback);
+    return this.i18nService.resolveLanguage(preferred, fallbackLang);
+  }
 
-    const t = MENU_TEXT[newLang as 'uz' | 'ru'] || MENU_TEXT.uz;
-    await this.telegramApi.sendMessage(token, chatId, t.languageChanged);
-    await this.showMainMenu(token, chatId, t);
+  private t(key: string, languageCode: string): string {
+    return this.i18nService.t(key, languageCode);
   }
 
   private formatPrice(price: bigint): string {
